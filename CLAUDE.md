@@ -1,0 +1,167 @@
+# AI Block Composer — Project Guide (for Claude Code)
+
+> Drop this file at the plugin root (`ai-block-composer/CLAUDE.md`). It orients any
+> agent continuing this project: what it is, what's built, the rules that must not
+> be broken, and what to build next.
+
+## 1. What this is
+
+A WordPress plugin that generates and customizes **pages and sections from AI
+prompts, using native WordPress core blocks** (not a proprietary page-builder
+format). The goal is Spectra/Elementor-class AI site building, but output that is
+plain Gutenberg — fully editable, theme-native, and future-proof.
+
+**Current stage:** `v0.1.0`, experimental. BYO API key (user pastes their own
+Anthropic key). No hosted proxy yet — that is the business phase, deliberately
+deferred (see §7).
+
+## 2. The one rule that defines the architecture
+
+**The AI must NEVER emit WordPress block markup directly.** Gutenberg markup is a
+serialized tree stored as HTML with JSON in comment delimiters (`<!-- wp:… {…} -->`).
+Models hallucinate it, producing content that saves but then shows "invalid block"
+or falls back to the classic editor.
+
+Instead, the pipeline is:
+
+```
+prompt
+  → theme context (theme.json palette/fonts)
+  → LLM with FORCED tool_use → structured JSON ("IR", our own clean schema)
+  → deterministic PHP serializer → valid core-block markup
+  → WordPress parse_blocks() validation (reject fallback)
+  → editor: wp.blocks.parse() + insertBlocks()
+```
+
+The **serializer owns correctness**; the model only fills a schema. Keep the
+fragile serialization in tested PHP where WordPress's real parser can validate it.
+Do not move serialization into JS or let the model produce final markup.
+
+## 3. Current file map
+
+```
+ai-block-composer/
+├── ai-block-composer.php              Bootstrap: constants (ABC_VERSION/DIR/URL),
+│                                       require includes, abc_boot() on plugins_loaded,
+│                                       enqueue editor.js, missing-key admin notice.
+├── includes/
+│   ├── class-serializer.php           ABC_Serializer — THE CORE. IR → block markup.
+│   │                                   Blocks: heading(1-4), paragraph, buttons
+│   │                                   (fill|outline), list(ordered), quote, image
+│   │                                   (blank placeholder + alt), spacer, columns
+│   │                                   (one level). Section = core/group, constrained,
+│   │                                   4rem padding, width full|wide|default,
+│   │                                   tone default|light|dark|accent.
+│   ├── class-anthropic-provider.php   ABC_Anthropic_Provider. Messages API,
+│   │                                   anthropic-version 2023-06-01, forced
+│   │                                   tool_choice → build_layout tool, reads
+│   │                                   tool_use.input. Swappable provider contract:
+│   │                                   generate($prompt, $context) → IR array|WP_Error.
+│   ├── class-theme-context.php        ABC_Theme_Context::summary() — reads
+│   │                                   wp_get_global_settings() palette + font sizes
+│   │                                   + site name/tagline for the prompt.
+│   ├── class-rest-controller.php      POST /ai-block-composer/v1/generate. perm:
+│   │                                   edit_posts. provider → serializer →
+│   │                                   parse_blocks validation → { markup, ir }.
+│   └── class-settings.php             ABC_Settings. Options page under Settings.
+│                                       Stores abc_api_key + abc_model.
+├── assets/
+│   └── editor.js                      Build-free sidebar (global wp.*, no JSX/webpack,
+│                                       createElement aliased to `el`). Prompt →
+│                                       apiFetch → parse + insertBlocks.
+└── readme.txt
+```
+
+**Naming conventions:** PHP prefix `ABC_` / `abc_`; option keys `abc_*`; REST
+namespace `ai-block-composer/v1`; text domain `ai-block-composer`.
+
+## 4. Hard constraints (do not regress these)
+
+- **Forced tool_use, no extended thinking.** The Anthropic API rejects
+  `tool_choice: {type:"tool"}` together with extended thinking. Keep thinking off
+  in `class-anthropic-provider.php`.
+- **Structured output = tool_use trick.** Define the IR as a tool `input_schema`,
+  force the call, read `content[].type === "tool_use"` → `.input`. (If migrating to
+  the newer native structured-outputs beta, gate it behind a capability check.)
+- **Every generation is re-validated** via `parse_blocks()`; reject `core/freeform`
+  (classic fallback = invalid markup).
+- **Images are blank placeholders.** The AI writes `alt`, never a URL. User picks
+  media after insertion.
+- **Copy must be real and specific** — the system prompt forbids lorem ipsum.
+- **API key never touches the browser** even in BYO mode — all LLM calls go through
+  the REST endpoint.
+- **JS stays build-free for now** (global `wp.*`). Only introduce a build step in
+  the Phase-1.5 hardening task below, deliberately.
+
+## 5. How to develop & test
+
+- **Lint PHP:** `php -l` on every file before shipping.
+- **Serializer unit test (no WP needed):** stub `wp_json_encode`, `esc_attr`,
+  `esc_url`, `wp_kses`, feed a realistic IR, assert opening/closing block-comment
+  counts balance and all inline JSON parses. (A harness was used in dev; port it to
+  PHPUnit — see task 6.1.)
+- **Local run:** activate in a WP ≥ 6.4 site, Settings → AI Block Composer → paste
+  key, edit a page, open the sidebar (star menu), generate.
+- **Reference sanity:** generated markup should be byte-comparable in shape to what
+  the block editor itself saves (`wp-block-heading`, `wp-element-button`,
+  `is-style-outline`, constrained groups, nested columns).
+
+## 6. Roadmap
+
+### Phase 1.5 — Hardening (next up, highest ROI)
+- [ ] **6.1** Add PHPUnit; port the serializer harness; add fixtures per block type.
+- [ ] **6.2** Group the insertion so a single Ctrl/Cmd-Z removes the whole section.
+- [ ] **6.3** Retry loop on malformed/empty IR (1 retry with a corrective message).
+- [ ] **6.4** Theme-native tones: map `tone` to theme.json palette **slugs**
+      (`backgroundColor`/`textColor` + `has-*` classes) instead of hardcoded hex;
+      fall back to hex only when no matching slug exists.
+- [ ] **6.5** Preview-before-insert (render IR in the panel; Insert / Regenerate).
+- [ ] **6.6** Broaden block coverage: `cover`, `media-text`, `group` variations,
+      `separator`, nested `columns` depth-2 (guard recursion).
+- [ ] **6.7** Move `editor.js` to `@wordpress/scripts` + JSX for the production build
+      (keep the build-free version as reference).
+
+### Phase 2 — Contextual editing (the real differentiator)
+- [ ] Select one or more blocks in the editor, prompt an edit ("make this punchier",
+      "add a third column", "change tone to dark").
+- [ ] Serialize the selected blocks back to markup, send as **context** alongside
+      the prompt; the model returns a revised IR for just that selection.
+- [ ] Replace the selected blocks with the regenerated ones (preserve clientIds
+      where possible). Reuses the existing serializer + provider.
+- [ ] Feed theme.json context here too so edits stay on-brand.
+
+### Phase 3 — Full-page from a brief
+- [ ] Two-step generation: prompt → **page outline** (ordered section list with
+      intent) → generate each section → assemble.
+- [ ] Insert as a full page draft; allow per-section regenerate.
+- [ ] Optional: create the `wp_post` server-side via `wp_insert_post()` for
+      "generate a whole page" from outside the editor.
+
+### Phase 4 — Site planner
+- [ ] Sitemap-level generation across multiple pages (Home/About/Services/Contact).
+- [ ] Reusable pattern library + brand kit (logo, palette, fonts) applied globally.
+- [ ] Export/import as a pattern or block-template kit.
+
+### Business layer — Proxy & metering (do AFTER product works)
+- [ ] Replace BYO key with a hosted proxy: plugin calls **our** endpoint, we call the
+      LLM, we meter tokens → credits/subscription.
+- [ ] Provider abstraction is already isolated in `class-anthropic-provider.php`;
+      add `class-openai-provider.php` / `class-gemini-provider.php` behind a setting.
+- [ ] Only the provider + settings change — **the serializer must not move.**
+- [ ] Security: with proxy, stop storing user keys; sign requests, rate-limit,
+      handle 429 with backoff.
+
+## 7. Known limitations (v0.1.0)
+- API key stored in `wp_options` as plaintext (fine for local/dev; resolved by the
+  proxy phase).
+- One level of column nesting; limited block vocabulary (see 6.6).
+- Tone colors are inline hex, not yet theme.json slugs (see 6.4).
+- No preview, no undo-grouping, no retry (see Phase 1.5).
+- English-only prompt UI strings pass through `__()` but no translations shipped.
+
+## 8. Design principles to preserve
+1. Output is always **plain core blocks** — never a proprietary format.
+2. The serializer is the asset; guard its correctness with tests.
+3. Context-awareness (theme.json) is the moat vs. generic generators.
+4. Ship the section generator excellently before chasing the full site planner —
+   it delivers ~80% of the value at ~20% of the complexity.

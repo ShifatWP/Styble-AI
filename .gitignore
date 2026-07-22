@@ -1,0 +1,13 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Dependencies / build (build-free for now; kept for future Phase 1.5)
+node_modules/
+vendor/
+build/
+
+# Logs
+*.log
