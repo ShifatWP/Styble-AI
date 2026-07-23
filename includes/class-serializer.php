@@ -23,6 +23,14 @@ class ABC_Serializer {
 	 * @return string Block markup ready for parse_blocks() / wp.blocks.parse().
 	 */
 	public function serialize( array $ir ) {
+		// Edit mode may return a flat list of blocks (no section wrapper) so an
+		// edit to loose content is not forced inside a new Group. Prefer sections
+		// when present; otherwise serialize a top-level "blocks" list.
+		if ( ( ! isset( $ir['sections'] ) || ! is_array( $ir['sections'] ) || empty( $ir['sections'] ) )
+			&& isset( $ir['blocks'] ) && is_array( $ir['blocks'] ) ) {
+			return $this->serialize_blocks( $ir['blocks'] );
+		}
+
 		$out      = '';
 		$sections = isset( $ir['sections'] ) && is_array( $ir['sections'] ) ? $ir['sections'] : array();
 
@@ -30,6 +38,23 @@ class ABC_Serializer {
 			$out .= $this->section( $section );
 		}
 
+		return $out;
+	}
+
+	/**
+	 * Serialize a flat list of leaf blocks (no section/Group wrapper). Used by
+	 * contextual editing when the model revises blocks in place.
+	 *
+	 * @param array $blocks List of block nodes (same schema as section blocks).
+	 * @return string Block markup.
+	 */
+	public function serialize_blocks( array $blocks ) {
+		$out = '';
+		foreach ( $blocks as $block ) {
+			if ( is_array( $block ) ) {
+				$out .= $this->block( $block );
+			}
+		}
 		return $out;
 	}
 

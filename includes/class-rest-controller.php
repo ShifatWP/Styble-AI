@@ -29,10 +29,19 @@ class ABC_REST_Controller {
 					return current_user_can( 'edit_posts' );
 				},
 				'args'                => array(
-					'prompt' => array(
+					'prompt'    => array(
 						'required'          => true,
 						'type'              => 'string',
 						'sanitize_callback' => 'sanitize_textarea_field',
+					),
+					'selection' => array(
+						'required'          => false,
+						'type'              => 'string',
+						// Existing block markup sent as edit context. It is NEVER
+						// output to the page (only fed to the model), and block
+						// markup lives in HTML comments that kses would strip — so
+						// keep it raw, just bound the size.
+						'sanitize_callback' => array( $this, 'sanitize_selection' ),
 					),
 				),
 			)
@@ -40,7 +49,8 @@ class ABC_REST_Controller {
 	}
 
 	public function generate( WP_REST_Request $request ) {
-		$prompt = trim( (string) $request->get_param( 'prompt' ) );
+		$prompt    = trim( (string) $request->get_param( 'prompt' ) );
+		$selection = trim( (string) $request->get_param( 'selection' ) );
 
 		if ( '' === $prompt ) {
 			return new WP_Error( 'abc_empty', 'Please describe what to build.', array( 'status' => 400 ) );
@@ -49,7 +59,10 @@ class ABC_REST_Controller {
 		$provider = $this->make_provider();
 		$context  = ( new ABC_Theme_Context() )->summary();
 
-		$ir = $provider->generate( $prompt, $context );
+		// With a selection we are editing existing blocks; otherwise generating new.
+		$ir = ( '' !== $selection )
+			? $provider->edit( $prompt, $context, $selection )
+			: $provider->generate( $prompt, $context );
 		if ( is_wp_error( $ir ) ) {
 			return new WP_Error( $ir->get_error_code(), $ir->get_error_message(), array( 'status' => 502 ) );
 		}
@@ -79,6 +92,19 @@ class ABC_REST_Controller {
 				'ir'     => $ir, // handy while experimenting; drop in production.
 			)
 		);
+	}
+
+	/**
+	 * Bound the selection markup we forward to the model. Not escaped (it is
+	 * context only, never rendered), just length-capped to keep the payload sane.
+	 */
+	public function sanitize_selection( $value ) {
+		$value = (string) $value;
+		$max   = 20000;
+		if ( strlen( $value ) > $max ) {
+			$value = substr( $value, 0, $max );
+		}
+		return $value;
 	}
 
 	/**

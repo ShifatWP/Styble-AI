@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'ABC_VERSION', '0.2.0' );
+define( 'ABC_VERSION', '0.3.1' );
 define( 'ABC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ABC_URL', plugin_dir_url( __FILE__ ) );
 
@@ -44,7 +44,7 @@ function abc_enqueue_editor_assets() {
 	wp_enqueue_script(
 		'ai-block-composer-editor',
 		ABC_URL . 'assets/editor.js',
-		array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-blocks', 'wp-api-fetch', 'wp-i18n' ),
+		array( 'wp-plugins', 'wp-edit-post', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-compose', 'wp-hooks', 'wp-data', 'wp-blocks', 'wp-api-fetch', 'wp-i18n' ),
 		ABC_VERSION,
 		true
 	);

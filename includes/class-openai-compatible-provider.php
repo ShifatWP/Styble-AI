@@ -7,11 +7,12 @@
  * Together, or a self-hosted endpoint. Lets you run the experiment on a free
  * (or near-free) key instead of Anthropic.
  *
- * Same contract as ABC_Anthropic_Provider: generate($prompt, $context) returns
- * the decoded IR array ( ['sections' => [...]] ) or a WP_Error. Structured
- * output is forced the same way — a single "function" whose parameters ARE our
- * IR schema, with tool_choice pinned to it. The serializer still owns
- * correctness; this layer only fills the schema.
+ * Same contract as ABC_Anthropic_Provider:
+ *   generate($prompt, $context)             -> IR for new sections.
+ *   edit($prompt, $context, $selection)     -> revised IR for selected blocks.
+ * Structured output is forced the same way — a single "function" whose
+ * parameters ARE our IR schema, with tool_choice pinned to it. The serializer
+ * still owns correctness; this layer only fills the schema.
  *
  * Key differences from the Anthropic layer:
  * - Auth header is `Authorization: Bearer <key>`.
@@ -98,11 +99,47 @@ class ABC_OpenAI_Compatible_Provider {
 	}
 
 	/**
+	 * Generate brand-new sections from a description.
+	 *
 	 * @param string $prompt  User's description of the section(s) to build.
 	 * @param string $context Theme summary from ABC_Theme_Context.
 	 * @return array|WP_Error Decoded IR ( ['sections' => [...]] ) or error.
 	 */
 	public function generate( $prompt, $context ) {
+		return $this->send(
+			$this->system_prompt( $context ),
+			$prompt,
+			$this->tool_definition( false ),
+			0.7
+		);
+	}
+
+	/**
+	 * Revise the currently selected block(s) per an edit instruction.
+	 *
+	 * @param string $prompt    The edit instruction.
+	 * @param string $context   Theme summary.
+	 * @param string $selection Block markup of the current selection (context).
+	 * @return array|WP_Error Decoded IR ( ['blocks'=>[...]] or ['sections'=>[...]] ).
+	 */
+	public function edit( $prompt, $context, $selection ) {
+		$user = "The user has selected these existing block(s):\n\n"
+			. "```\n" . $selection . "\n```\n\n"
+			. 'Apply this edit and return the full revised replacement for that selection: ' . $prompt;
+
+		return $this->send(
+			$this->edit_system_prompt( $context ),
+			$user,
+			$this->tool_definition( true ),
+			0.5
+		);
+	}
+
+	/**
+	 * POST the chat/completions request and pull the forced function-call
+	 * arguments (our IR).
+	 */
+	private function send( $system, $user, $tool, $temperature ) {
 		if ( empty( $this->api_key ) ) {
 			return new WP_Error( 'abc_no_key', 'No API key configured. Add one under Settings → AI Block Composer.' );
 		}
@@ -116,18 +153,18 @@ class ABC_OpenAI_Compatible_Provider {
 		$body = array(
 			'model'       => $this->model,
 			'max_tokens'  => 4096,
-			'temperature' => 0.7,
+			'temperature' => $temperature,
 			'messages'    => array(
 				array(
 					'role'    => 'system',
-					'content' => $this->system_prompt( $context ),
+					'content' => $system,
 				),
 				array(
 					'role'    => 'user',
-					'content' => $prompt,
+					'content' => $user,
 				),
 			),
-			'tools'       => array( $this->tool_definition() ),
+			'tools'       => array( $tool ),
 			'tool_choice' => array(
 				'type'     => 'function',
 				'function' => array( 'name' => 'build_layout' ),
@@ -194,8 +231,7 @@ class ABC_OpenAI_Compatible_Provider {
 	}
 
 	/**
-	 * System prompt: teaches the model our block vocabulary and design rules.
-	 * (Mirrors the Anthropic provider so output quality is comparable.)
+	 * System prompt for new generation.
 	 */
 	private function system_prompt( $context ) {
 		return implode(
@@ -218,11 +254,101 @@ class ABC_OpenAI_Compatible_Provider {
 	}
 
 	/**
-	 * The function whose parameters ARE our intermediate representation.
-	 * Same JSON Schema as the Anthropic tool, wrapped in the OpenAI shape.
+	 * System prompt for contextual editing of an existing selection.
 	 */
-	private function tool_definition() {
-		$block_schema = array(
+	private function edit_system_prompt( $context ) {
+		return implode(
+			"\n",
+			array(
+				'You are a WordPress layout editor. The user has selected one or more existing blocks and wants to revise them. Return the revised replacement by calling build_layout.',
+				'',
+				'Rules:',
+				'- Return ONLY the replacement for the selection — do not add unrelated sections.',
+				'- If the edit stays within content (rewriting copy, adding a list item, adding a column, changing a heading), return a flat "blocks" array so structure is preserved.',
+				'- If the edit changes a whole section\'s tone/width or replaces an entire section, return "sections" instead.',
+				'- Preserve the parts of the existing content the user did not ask to change; keep real, specific copy (no lorem ipsum).',
+				'- Match the number and kind of blocks to the request; do not drop content unless asked.',
+				'- Images stay as placeholders (no URL); keep or improve the alt text.',
+				'',
+				'Site context (use it to match tone and wording): ' . $context,
+			)
+		);
+	}
+
+	/**
+	 * The function whose parameters ARE our IR. In edit mode it also accepts a
+	 * flat "blocks" list; in generate mode only "sections".
+	 */
+	private function tool_definition( $edit ) {
+		$block_schema = $this->block_schema();
+
+		$properties = array(
+			'sections' => $this->sections_schema( $block_schema ),
+		);
+		$required = array( 'sections' );
+
+		if ( $edit ) {
+			$properties['blocks'] = array(
+				'type'        => 'array',
+				'description' => 'Flat replacement blocks (preferred for in-place edits). Use this OR "sections", not both.',
+				'items'       => $block_schema,
+			);
+			$required = array();
+		}
+
+		return array(
+			'type'     => 'function',
+			'function' => array(
+				'name'        => 'build_layout',
+				'description' => $edit
+					? 'Return the revised replacement for the selected blocks as either a flat "blocks" list or "sections".'
+					: 'Produce the page layout as a list of sections built from core WordPress blocks.',
+				'parameters'  => array(
+					'type'       => 'object',
+					'properties' => $properties,
+					'required'   => $required,
+				),
+			),
+		);
+	}
+
+	/**
+	 * The "sections" array schema (shared by generate + edit).
+	 */
+	private function sections_schema( $block_schema ) {
+		return array(
+			'type'        => 'array',
+			'description' => 'Ordered list of page sections.',
+			'items'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'label'  => array(
+						'type'        => 'string',
+						'description' => 'Short internal name, e.g. "Hero", "Features", "CTA".',
+					),
+					'tone'   => array(
+						'type' => 'string',
+						'enum' => array( 'default', 'light', 'dark', 'accent' ),
+					),
+					'width'  => array(
+						'type' => 'string',
+						'enum' => array( 'full', 'wide', 'default' ),
+					),
+					'blocks' => array(
+						'type'  => 'array',
+						'items' => $block_schema,
+					),
+				),
+				'required'   => array( 'blocks' ),
+			),
+		);
+	}
+
+	/**
+	 * Schema for a single leaf/columns block node.
+	 */
+	private function block_schema() {
+		return array(
 			'type'       => 'object',
 			'properties' => array(
 				'type'     => array(
@@ -278,46 +404,6 @@ class ABC_OpenAI_Compatible_Provider {
 				),
 			),
 			'required'   => array( 'type' ),
-		);
-
-		return array(
-			'type'     => 'function',
-			'function' => array(
-				'name'        => 'build_layout',
-				'description' => 'Produce the page layout as a list of sections built from core WordPress blocks.',
-				'parameters'  => array(
-					'type'       => 'object',
-					'properties' => array(
-						'sections' => array(
-							'type'        => 'array',
-							'description' => 'Ordered list of page sections.',
-							'items'       => array(
-								'type'       => 'object',
-								'properties' => array(
-									'label'  => array(
-										'type'        => 'string',
-										'description' => 'Short internal name, e.g. "Hero", "Features", "CTA".',
-									),
-									'tone'   => array(
-										'type' => 'string',
-										'enum' => array( 'default', 'light', 'dark', 'accent' ),
-									),
-									'width'  => array(
-										'type' => 'string',
-										'enum' => array( 'full', 'wide', 'default' ),
-									),
-									'blocks' => array(
-										'type'  => 'array',
-										'items' => $block_schema,
-									),
-								),
-								'required'   => array( 'blocks' ),
-							),
-						),
-					),
-					'required'   => array( 'sections' ),
-				),
-			),
 		);
 	}
 }
