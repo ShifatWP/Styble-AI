@@ -121,7 +121,7 @@ class ABC_Settings {
 							<input name="abc_model" id="abc_model" type="text"
 								value="<?php echo esc_attr( $model ); ?>" class="regular-text"
 								placeholder="<?php echo esc_attr( $providers[ $provider ]['model'] ); ?>" />
-							<p class="description">Leave blank to use the provider's default (shown as the placeholder). Examples: <code>llama-3.3-70b-versatile</code> (Groq), <code>llama-3.3-70b</code> (Cerebras), <code>deepseek-chat</code>, <code>claude-sonnet-5</code>.</p>
+							<p class="description">Leave blank to use the provider's default (shown as the placeholder). Examples: <code>llama-3.3-70b-versatile</code> (Groq), <code>llama-3.3-70b</code> (Cerebras), <code>deepseek-chat</code>, <code>claude-sonnet-5</code>.<br /><strong>Image uploads need a vision model:</strong> <code>meta-llama/llama-4-scout-17b-16e-instruct</code> (Groq, free), <code>gemini-2.0-flash</code> (Gemini, free), <code>claude-sonnet-5</code>, or <code>gpt-4o</code>. Text-only models (e.g. <code>llama-3.3-70b-versatile</code>) reject images.</p>
 						</td>
 					</tr>
 					<tr id="abc_base_url_row">

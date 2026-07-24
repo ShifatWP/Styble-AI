@@ -36,9 +36,25 @@ class ABC_Anthropic_Provider {
 	 *
 	 * @param string $prompt  User's description of the section(s) to build.
 	 * @param string $context Theme summary from ABC_Theme_Context.
+	 * @param string $image   Optional data:image/*;base64 URL of a design reference.
 	 * @return array|WP_Error Decoded IR ( ['sections' => [...]] ) or error.
 	 */
-	public function generate( $prompt, $context ) {
+	public function generate( $prompt, $context, $image = '' ) {
+		// With an image, send multimodal content (needs a vision-capable model).
+		$content = $prompt;
+		if ( $image ) {
+			$img = $this->image_block( $image );
+			if ( $img ) {
+				$content = array(
+					array(
+						'type' => 'text',
+						'text' => $prompt,
+					),
+					$img,
+				);
+			}
+		}
+
 		$body = array(
 			'model'       => $this->model,
 			'max_tokens'  => 4096,
@@ -52,12 +68,30 @@ class ABC_Anthropic_Provider {
 			'messages'    => array(
 				array(
 					'role'    => 'user',
-					'content' => $prompt,
+					'content' => $content,
 				),
 			),
 		);
 
 		return $this->send( $body );
+	}
+
+	/**
+	 * Parse a data URL into an Anthropic image content block. Returns null if the
+	 * string is not a base64 image data URL.
+	 */
+	private function image_block( $data_url ) {
+		if ( ! preg_match( '#^data:(image/[a-z0-9.+-]+);base64,(.+)$#is', (string) $data_url, $m ) ) {
+			return null;
+		}
+		return array(
+			'type'   => 'image',
+			'source' => array(
+				'type'       => 'base64',
+				'media_type' => $m[1],
+				'data'       => $m[2],
+			),
+		);
 	}
 
 	/**

@@ -17,6 +17,7 @@
 
 	var el = wp.element.createElement;
 	var useState = wp.element.useState;
+	var useRef = wp.element.useRef;
 	var Fragment = wp.element.Fragment;
 	var __ = wp.i18n.__;
 	var registerPlugin = wp.plugins.registerPlugin;
@@ -31,6 +32,41 @@
 	var C = wp.components;
 	var apiFetch = wp.apiFetch;
 	var MAXLEN = 1000;
+	var MAX_IMG_BYTES = 8 * 1024 * 1024; // 8 MB, matches the server cap.
+	var MAX_IMG_DIM = 1024;              // Downscale longest side to this.
+
+	// Read an image file, downscale to <= MAX_IMG_DIM, hand back a JPEG data URL.
+	// cb(null) on any failure. Keeps payload/token cost low before upload.
+	function loadDownscaled( file, cb ) {
+		if ( typeof FileReader === 'undefined' ) { cb( null ); return; }
+		var reader = new FileReader();
+		reader.onload = function ( e ) {
+			var img = new window.Image();
+			img.onload = function () {
+				var w = img.width, h = img.height;
+				if ( w > MAX_IMG_DIM || h > MAX_IMG_DIM ) {
+					var r = Math.min( MAX_IMG_DIM / w, MAX_IMG_DIM / h );
+					w = Math.round( w * r );
+					h = Math.round( h * r );
+				}
+				var canvas = document.createElement( 'canvas' );
+				canvas.width = w;
+				canvas.height = h;
+				var ctx = canvas.getContext( '2d' );
+				if ( ! ctx ) { cb( null ); return; }
+				ctx.drawImage( img, 0, 0, w, h );
+				try {
+					cb( canvas.toDataURL( 'image/jpeg', 0.85 ) );
+				} catch ( err ) {
+					cb( null );
+				}
+			};
+			img.onerror = function () { cb( null ); };
+			img.src = e.target.result;
+		};
+		reader.onerror = function () { cb( null ); };
+		reader.readAsDataURL( file );
+	}
 
 	// Inline line-icons (no icon font, no build step). Each entry is a list of
 	// SVG path `d` strings drawn with the current text color.
@@ -43,7 +79,8 @@
 		star:        [ 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.9 6.6 20.9l1-6.1L3.2 9.5l6.1-.9z' ],
 		shield:      [ 'M12 3l7 2.5v5.5c0 4.5-3.1 7.4-7 8.5-3.9-1.1-7-4-7-8.5V5.5z', 'M9 12l2 2 4-4' ],
 		arrow:       [ 'M7 17L17 7', 'M8.5 7H17v8.5' ],
-		edit:        [ 'M4 20h4L18.5 9.5a2 2 0 0 0-2.83-2.83L5 17v3z', 'M13.5 6.5l4 4' ]
+		edit:        [ 'M4 20h4L18.5 9.5a2 2 0 0 0-2.83-2.83L5 17v3z', 'M13.5 6.5l4 4' ],
+		image:       [ 'M4 5h16v14H4z', 'M4 16l4.5-4.5 3 3 4-4L20 14', 'M9 9.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0' ]
 	};
 
 	function icon( name, size, color ) {
@@ -140,7 +177,19 @@
 		'.abc-quick-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}' +
 		'.abc-quick{padding:5px 11px;border-radius:999px;border:1px solid #d5d7db;background:#fff;color:#3c434a;font-size:11.5px;cursor:pointer;transition:all .12s}' +
 		'.abc-quick:hover:not(:disabled){border-color:#3d986a;color:#1c7c4a;background:#f4faf6}' +
-		'.abc-quick:disabled{opacity:.55;cursor:not-allowed}';
+		'.abc-quick:disabled{opacity:.55;cursor:not-allowed}' +
+		// Design-image attach (sidebar generate).
+		'.abc-attach{margin-top:10px}' +
+		'.abc-attach-btn{display:inline-flex;align-items:center;gap:7px;width:100%;justify-content:center;border:1px dashed #cdd0d4;background:#fff;color:#3c434a;border-radius:8px;padding:10px 12px;font-size:12px;cursor:pointer;transition:all .12s}' +
+		'.abc-attach-btn:hover:not(:disabled){border-color:#3d986a;color:#1c7c4a;background:#f4faf6}' +
+		'.abc-attach-btn:disabled{opacity:.55;cursor:not-allowed}' +
+		'.abc-attach-hint{font-size:11px;color:#7a8085;line-height:1.5;margin:7px 0 0}' +
+		'.abc-thumb{position:relative;display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #e2e4e7;border-radius:8px;background:#fafbfb}' +
+		'.abc-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;flex:0 0 auto;background:#fff}' +
+		'.abc-thumb-meta{flex:1;min-width:0;font-size:11.5px;color:#50575e;line-height:1.4}' +
+		'.abc-thumb-name{font-weight:600;color:#1e1e1e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+		'.abc-thumb-x{flex:0 0 auto;width:26px;height:26px;border:1px solid #d5d7db;background:#fff;border-radius:6px;color:#7a8085;font-size:15px;line-height:1;cursor:pointer}' +
+		'.abc-thumb-x:hover{border-color:#b32d2e;color:#b32d2e}';
 
 	// Inject styles once, globally — the toolbar popover renders even when the
 	// sidebar panel is closed, so styles cannot live only inside the panel.
@@ -316,6 +365,60 @@
 		var notice = noticeState[ 0 ];
 		var setNotice = noticeState[ 1 ];
 
+		var imageState = useState( null );
+		var image = imageState[ 0 ];
+		var setImage = imageState[ 1 ];
+
+		var imageNameState = useState( '' );
+		var imageName = imageNameState[ 0 ];
+		var setImageName = imageNameState[ 1 ];
+
+		var fileRef = useRef ? useRef( null ) : { current: null };
+
+		// Accept an image File: reject oversized up front, else downscale + attach.
+		function acceptImage( file, fallbackName ) {
+			if ( ! file ) { return; }
+			if ( file.size > MAX_IMG_BYTES ) {
+				setNotice( { type: 'error', text: __( 'Image too large — max 8 MB.', 'ai-block-composer' ) } );
+				return;
+			}
+			loadDownscaled( file, function ( url ) {
+				if ( url ) {
+					setImage( url );
+					setImageName( file.name || fallbackName || __( 'Design image', 'ai-block-composer' ) );
+					setNotice( null );
+				} else {
+					setNotice( { type: 'error', text: __( 'Could not read that image.', 'ai-block-composer' ) } );
+				}
+			} );
+		}
+
+		function onFilePick( e ) {
+			var f = e.target.files && e.target.files[ 0 ];
+			acceptImage( f );
+			e.target.value = ''; // allow re-picking the same file
+		}
+
+		function onPastePrompt( e ) {
+			var items = e.clipboardData && e.clipboardData.items;
+			if ( ! items ) { return; }
+			for ( var i = 0; i < items.length; i++ ) {
+				if ( items[ i ].type && items[ i ].type.indexOf( 'image' ) === 0 ) {
+					var f = items[ i ].getAsFile();
+					if ( f ) {
+						e.preventDefault();
+						acceptImage( f, __( 'Pasted image', 'ai-block-composer' ) );
+					}
+					break;
+				}
+			}
+		}
+
+		function clearImage() {
+			setImage( null );
+			setImageName( '' );
+		}
+
 		function insertMarkup( markup ) {
 			var blocks = wp.blocks.parse( markup );
 			if ( ! blocks || ! blocks.length ) {
@@ -341,7 +444,13 @@
 				effective = picked.instr + '\n\n' + effective;
 			}
 
-			apiFetch( { path: '/ai-block-composer/v1/generate', method: 'POST', data: { prompt: effective } } )
+			var data = { prompt: effective };
+			if ( image ) {
+				data.image = image;
+			}
+			var hadImage = !! image;
+
+			apiFetch( { path: '/ai-block-composer/v1/generate', method: 'POST', data: data } )
 				.then( function ( res ) {
 					setBusy( false );
 					if ( res && res.markup ) {
@@ -353,6 +462,9 @@
 				.catch( function ( err ) {
 					setBusy( false );
 					var msg = ( err && err.message ) ? err.message : __( 'Request failed.', 'ai-block-composer' );
+					if ( hadImage ) {
+						msg += ' ' + __( '— the selected model may not support images; switch to a vision model.', 'ai-block-composer' );
+					}
 					setNotice( { type: 'error', text: msg } );
 				} );
 		}
@@ -389,8 +501,47 @@
 				maxLength: MAXLEN,
 				disabled: busy,
 				placeholder: __( 'e.g. A features section with 3 columns: fast, secure, affordable — each with a heading and a sentence.', 'ai-block-composer' ),
-				onChange: function ( e ) { setPrompt( e.target.value ); }
+				onChange: function ( e ) { setPrompt( e.target.value ); },
+				onPaste: onPastePrompt
 			} )
+		);
+
+		// Design-image attach: build the layout from a screenshot/mockup.
+		children.push(
+			el( 'div', { key: 'attach', className: 'abc-attach' },
+				el( 'input', {
+					ref: fileRef,
+					type: 'file',
+					accept: 'image/*',
+					style: { display: 'none' },
+					onChange: onFilePick
+				} ),
+				image
+					? el( 'div', { className: 'abc-thumb' },
+						el( 'img', { src: image, alt: '' } ),
+						el( 'div', { className: 'abc-thumb-meta' },
+							el( 'div', { className: 'abc-thumb-name' }, imageName ),
+							el( 'div', {}, __( 'AI will build from this image.', 'ai-block-composer' ) )
+						),
+						el( 'button', {
+							type: 'button',
+							className: 'abc-thumb-x',
+							'aria-label': __( 'Remove image', 'ai-block-composer' ),
+							title: __( 'Remove image', 'ai-block-composer' ),
+							disabled: busy,
+							onClick: clearImage
+						}, '×' )
+					)
+					: el( 'button', {
+						type: 'button',
+						className: 'abc-attach-btn',
+						disabled: busy,
+						onClick: function () { if ( fileRef.current ) { fileRef.current.click(); } }
+					}, icon( 'image', 15 ), __( 'Add a design image', 'ai-block-composer' ) ),
+				el( 'p', { className: 'abc-attach-hint' },
+					__( 'Optional. Or paste an image into the prompt. Needs a vision model (Groq llama-4-scout, Gemini, Claude, GPT-4o).', 'ai-block-composer' )
+				)
+			)
 		);
 
 		// Tone chips.
@@ -427,8 +578,8 @@
 				el( 'button', {
 					type: 'button',
 					className: 'abc-clear',
-					disabled: ! hasText || busy,
-					onClick: function () { setPrompt( '' ); setNotice( null ); }
+					disabled: ( ! hasText && ! image ) || busy,
+					onClick: function () { setPrompt( '' ); setNotice( null ); clearImage(); }
 				}, __( 'Clear', 'ai-block-composer' ) )
 			)
 		);

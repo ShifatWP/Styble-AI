@@ -89,6 +89,12 @@ class ABC_OpenAI_Compatible_Provider {
 				'model'    => 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
 				'signup'   => 'https://api.together.xyz/settings/api-keys',
 			),
+			'gemini'     => array(
+				'label'    => 'Google Gemini (free — vision + tools, for image uploads)',
+				'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+				'model'    => 'gemini-2.0-flash',
+				'signup'   => 'https://aistudio.google.com/app/apikey',
+			),
 			'custom'     => array(
 				'label'    => 'Custom (enter your own base URL)',
 				'endpoint' => '',
@@ -103,12 +109,28 @@ class ABC_OpenAI_Compatible_Provider {
 	 *
 	 * @param string $prompt  User's description of the section(s) to build.
 	 * @param string $context Theme summary from ABC_Theme_Context.
+	 * @param string $image   Optional data:image/*;base64 URL of a design reference.
 	 * @return array|WP_Error Decoded IR ( ['sections' => [...]] ) or error.
 	 */
-	public function generate( $prompt, $context ) {
+	public function generate( $prompt, $context, $image = '' ) {
+		// With an image, send multimodal content (needs a vision-capable model).
+		$user = $prompt;
+		if ( $image ) {
+			$user = array(
+				array(
+					'type' => 'text',
+					'text' => $prompt,
+				),
+				array(
+					'type'      => 'image_url',
+					'image_url' => array( 'url' => $image ),
+				),
+			);
+		}
+
 		return $this->send(
 			$this->system_prompt( $context ),
-			$prompt,
+			$user,
 			$this->tool_definition( false ),
 			0.7
 		);

@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'ABC_VERSION', '0.3.1' );
+define( 'ABC_VERSION', '0.4.0' );
 define( 'ABC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ABC_URL', plugin_dir_url( __FILE__ ) );
 

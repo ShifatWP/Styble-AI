@@ -8,9 +8,24 @@ Generate WordPress native (core) block sections from AI prompts, inside the edit
 == What this experimental build does ==
 * Adds an "AI Block Composer" sidebar to the block editor.
 * You describe a section or layout; it is inserted as fully editable CORE blocks.
+* Edit any existing block in place — select it, click "Edit with AI" in its
+  toolbar, describe the change.
+* Attach a design image (upload or paste) and the AI builds a matching layout —
+  requires a vision-capable model (see below).
 * Bring your own API key. Works with Anthropic (Claude) OR any OpenAI-compatible
-  provider — including FREE ones like Groq and Cerebras. No hosted proxy yet;
+  provider — including FREE ones like Groq and Gemini. No hosted proxy yet;
   that comes later for the credits/subscription business model.
+
+== Building from a design image (vision) ==
+Attach a screenshot or mockup in the sidebar (or paste an image into the prompt)
+and the AI reconstructs it as native blocks. This needs a model that supports
+BOTH vision and function calling:
+  * Groq    meta-llama/llama-4-scout-17b-16e-instruct   (free)
+  * Gemini  gemini-2.0-flash                            (free)
+  * Claude  claude-sonnet-5
+  * OpenAI  gpt-4o
+Text-only models (e.g. llama-3.3-70b-versatile) will reject images. Images are
+downscaled in the browser before upload; max 8 MB per image.
 
 == Architecture (why it is reliable) ==
 The AI never writes block markup directly (that format is fragile and models

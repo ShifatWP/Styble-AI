@@ -43,6 +43,17 @@ class ABC_REST_Controller {
 						// keep it raw, just bound the size.
 						'sanitize_callback' => array( $this, 'sanitize_selection' ),
 					),
+					'image'     => array(
+						'required'          => false,
+						'type'              => 'string',
+						// A data:image/*;base64 URL used as a design reference.
+						// Kept as a light string passthrough; real validation (type
+						// + size) happens in generate() so we can return an explicit
+						// error instead of silently dropping it.
+						'sanitize_callback' => function ( $v ) {
+							return trim( (string) $v );
+						},
+					),
 				),
 			)
 		);
@@ -51,18 +62,31 @@ class ABC_REST_Controller {
 	public function generate( WP_REST_Request $request ) {
 		$prompt    = trim( (string) $request->get_param( 'prompt' ) );
 		$selection = trim( (string) $request->get_param( 'selection' ) );
+		$image     = trim( (string) $request->get_param( 'image' ) );
 
 		if ( '' === $prompt ) {
 			return new WP_Error( 'abc_empty', 'Please describe what to build.', array( 'status' => 400 ) );
 		}
 
+		// Validate an attached design image up front — never silently drop it.
+		if ( '' !== $image ) {
+			if ( 0 !== strpos( $image, 'data:image/' ) ) {
+				return new WP_Error( 'abc_bad_image', 'Attached file is not a valid image.', array( 'status' => 400 ) );
+			}
+			// ~8 MB cap on the raw data URL (base64 is ~33% larger than the file).
+			if ( strlen( $image ) > 8 * 1024 * 1024 ) {
+				return new WP_Error( 'abc_image_too_large', 'Image is too large. Please use one under 8 MB.', array( 'status' => 413 ) );
+			}
+		}
+
 		$provider = $this->make_provider();
 		$context  = ( new ABC_Theme_Context() )->summary();
 
-		// With a selection we are editing existing blocks; otherwise generating new.
+		// A selection means editing existing blocks (text-only). Otherwise generate
+		// new sections, optionally from a design image.
 		$ir = ( '' !== $selection )
 			? $provider->edit( $prompt, $context, $selection )
-			: $provider->generate( $prompt, $context );
+			: $provider->generate( $prompt, $context, $image );
 		if ( is_wp_error( $ir ) ) {
 			return new WP_Error( $ir->get_error_code(), $ir->get_error_message(), array( 'status' => 502 ) );
 		}
