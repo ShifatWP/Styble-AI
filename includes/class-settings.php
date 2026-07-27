@@ -90,7 +90,7 @@ class Styble_AI_Settings {
 		?>
 		<div class="wrap">
 			<h1>Styble AI</h1>
-			<p>Experimental build. Pick a provider, paste that provider's API key, and generate WordPress core-block sections from a prompt inside the editor. Out of Anthropic credits? <strong>Groq</strong> and <strong>Cerebras</strong> run Llama 3.3 70B free and support the function-calling this plugin needs.</p>
+			<p>Experimental build. Pick a provider, paste that provider's API key, and generate Styble block sections from a prompt inside the editor. Requires Styble Pro. Out of Anthropic credits? <strong>Groq</strong> and <strong>Cerebras</strong> run Llama 3.3 70B free and support the function-calling this plugin needs.</p>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'styble_ai_settings' ); ?>
 				<table class="form-table" role="presentation">

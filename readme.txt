@@ -41,16 +41,30 @@ downscaled in the browser before upload; max 8 MB per image.
 == Architecture (why it is reliable) ==
 The AI never writes block markup directly (that format is fragile and models
 hallucinate it). Instead:
-  1. The AI is forced to fill a clean JSON schema via tool/function calling
-     (structured output).
-  2. A deterministic PHP serializer converts that JSON into valid core-block markup.
-  3. WordPress's own parser validates the result before it reaches the editor.
+  1. A catalog is generated from Styble Pro's own source — block.json for
+     attributes, index.js for nesting rules, edit.jsx for uniqueId prefixes.
+  2. The system prompt and the emit_layout tool schema are generated from that
+     catalog, so neither can drift from the blocks.
+  3. The AI is forced to call emit_layout and returns a JSON tree of sparse
+     attributes — never markup.
+  4. A validator checks the tree against the catalog. It never coerces: a bad
+     tree is rejected with a code, a JSON path and a reason.
+  5. On rejection the model gets its own errors back and one more attempt. A
+     second rejection is reported, not patched.
+  6. The editor builds the validated tree with createBlock(), so every block
+     fills its own block.json defaults and assigns its own uniqueId.
+
+There is no serializer. Every Styble block is dynamic — save() returns
+InnerBlocks.Content or null and PHP renders the frontend from attributes — so
+there is no markup to concatenate, and building blocks in the editor is what
+makes defaults and scoped CSS work.
 
 == Setup guide ==
 
 Step 1 — Install & activate
-  1. Copy the ai-block-composer folder into wp-content/plugins/ (or upload a zip).
-  2. Activate it under Plugins.
+  1. Install and activate Styble Pro first; Styble AI depends on it.
+  2. Copy the styble-ai folder into wp-content/plugins/ (or upload a zip).
+  3. Activate it under Plugins.
 
 Step 2 — Pick a provider and get a key
   Any provider works as long as the chosen model supports function/tool calling.
@@ -70,7 +84,7 @@ Step 2 — Pick a provider and get a key
     stick to a Llama 3.3 70B instruct model.
 
 Step 3 — Configure
-  1. Go to Settings -> AI Block Composer.
+  1. Go to Settings -> Styble AI.
   2. Choose your Provider from the dropdown.
   3. Paste that provider's API key (the "Get a key" link updates to match).
   4. Leave Model blank to use the provider's default (shown as the placeholder),
@@ -97,30 +111,50 @@ Step 5 — Test prompt (full small page)
     button. Real, specific copy — no placeholders.
 
 == Troubleshooting ==
-* "did not return structured layout data" — the model does not support function
-  calling. Switch to Groq or Cerebras with a Llama 3.3 70B model.
+* "did not call emit_layout" — the model does not support function calling.
+  Switch to Groq or Cerebras with a Llama 3.3 70B model.
+* "did not satisfy the Styble block contract, twice" — the sidebar lists the
+  validator's reasons underneath. An attr_unknown or block_not_allowlisted means
+  the model wanted something outside the v1 allowlist; widen it in
+  scripts/generate-catalog.php and regenerate.
+* "cannot read its block catalog" — run: php scripts/generate-catalog.php
+* "ran out of output budget" — the tree was truncated mid-emit. Ask for a
+  smaller section.
 * HTTP 429 / rate limit — free tiers throttle. Wait a moment and generate again.
-  (An automatic retry loop is on the roadmap.)
-* "invalid block" after insert — should not happen; markup is server-validated.
-  If it does, regenerate and report the prompt.
+
+== Checks (no WordPress, no API key) ==
+  php scripts/generate-catalog.php    Regenerate the catalog from Styble Pro.
+  php scripts/validate.php            Contract fixtures; asserts every error code.
+  php scripts/test-generator.php      The retry loop, against a stub provider.
+  php scripts/dump-prompt.php         Exactly what the model is told.
 
 == Files ==
-* ai-block-composer.php                       Bootstrap + asset enqueue.
-* includes/class-serializer.php               JSON IR -> core block markup (the core; tested).
+* styble-ai.php                               Bootstrap + asset enqueue.
+* scripts/generate-catalog.php                Styble Pro source -> catalog/catalog.json.
+* includes/class-catalog.php                  Read-only accessor over the catalog.
+* includes/class-prompt.php                   System prompt + emit_layout tool schema.
+* includes/class-validator.php                29 contract rules; never coerces.
+* includes/class-generator.php                Provider -> validate -> corrective retry.
+* includes/class-brand-context.php            Styble global settings -> prompt context.
 * includes/class-anthropic-provider.php       Anthropic Messages API, forced tool_use.
 * includes/class-openai-compatible-provider.php  Groq/Cerebras/OpenRouter/DeepSeek/
-                                              Mistral/Together/custom, forced function call.
-* includes/class-theme-context.php            Reads theme.json so output matches the site.
-* includes/class-rest-controller.php          /ai-block-composer/v1/generate + validation.
+                                              Mistral/Together/Gemini/custom.
+* includes/class-rest-controller.php          /styble-ai/v1/generate; returns a tree.
 * includes/class-settings.php                 Provider selector + key + model + base URL.
+* assets/applier.js                           Validated tree -> createBlock() blocks.
 * assets/editor.js                            Build-free sidebar (global wp.*, no JSX/webpack).
+* docs/CONTRACT.md                            The emit_layout contract and its error codes.
 
 == Extending ==
-* Add another provider: implement the same generate($prompt,$context) contract as
-  the existing providers and wire it into the settings dropdown + REST controller.
+* Widen what the AI can build: add the block or attribute to the allowlist in
+  scripts/generate-catalog.php and regenerate. The prompt, the tool schema and
+  the validator all follow automatically — none of them are hand-maintained.
+* Add another provider: implement complete( array $spec ) as the existing
+  providers do and wire it into the settings dropdown + REST controller. A
+  provider handles transport only; it never sees a Styble block.
 * OpenAI-compatible endpoints already work via the "Custom" provider — just paste
   the base URL, no code needed.
-* Swap BYO key for a metered proxy later without touching the serializer.
+* Swap BYO key for a metered proxy later without touching the contract.
 
 == Security notes ==
 * The API key is stored in wp_options as plaintext — fine for local/dev, resolved
