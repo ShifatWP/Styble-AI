@@ -22,6 +22,11 @@ define( 'STYBLE_AI_URL', plugin_dir_url( __FILE__ ) );
 
 require_once STYBLE_AI_DIR . 'includes/class-serializer.php';
 require_once STYBLE_AI_DIR . 'includes/class-theme-context.php';
+// The Styble pipeline: catalog -> prompt/tool schema -> (validator) -> applier.
+// Loaded but not yet wired into the REST route; that swap happens with the applier.
+require_once STYBLE_AI_DIR . 'includes/class-catalog.php';
+require_once STYBLE_AI_DIR . 'includes/class-brand-context.php';
+require_once STYBLE_AI_DIR . 'includes/class-prompt.php';
 require_once STYBLE_AI_DIR . 'includes/class-anthropic-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-openai-compatible-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-rest-controller.php';
