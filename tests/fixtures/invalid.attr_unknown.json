@@ -1,0 +1,12 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/advanced-text",
+    "attrs": {
+      "advancedTextContent": "Headline",
+      "textHTMLTag": "h1",
+      "fontSize": 44,
+      "marginBottom": 24
+    }
+  }
+}

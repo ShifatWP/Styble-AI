@@ -1,0 +1,78 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": {
+      "layout": "l-2-60-40",
+      "layoutSelected": true,
+      "columns": 2,
+      "containerWidth": "boxed",
+      "horizontalGap": {
+        "device": { "Desktop": 48, "Tablet": "", "Mobile": "" },
+        "unit": { "Desktop": "px", "Tablet": "px", "Mobile": "px" }
+      }
+    },
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          {
+            "block": "styble/advanced-text",
+            "attrs": {
+              "advancedTextContent": "Build Styble pages in minutes, not afternoons",
+              "textHTMLTag": "h1",
+              "textAliment": "left"
+            }
+          },
+          {
+            "block": "styble/advanced-text",
+            "attrs": {
+              "advancedTextContent": "Describe the section you want. Styble AI writes it with real, editable blocks — on your brand colours and type scale.",
+              "textHTMLTag": "p",
+              "textAliment": "left"
+            }
+          },
+          {
+            "block": "styble/advanced-buttons",
+            "attrs": {
+              "direction": "row",
+              "justify": "flex-start",
+              "gap": {
+                "device": { "Desktop": 16, "Tablet": 16, "Mobile": 16 },
+                "unit": { "Desktop": "px", "Tablet": "px", "Mobile": "px" }
+              }
+            },
+            "children": [
+              {
+                "block": "styble/advanced-button",
+                "attrs": { "labelText": "Start free", "addLink": "#" }
+              },
+              {
+                "block": "styble/advanced-button",
+                "attrs": {
+                  "labelText": "See a demo",
+                  "addLink": "#",
+                  "buttonIcon": { "source": "icon", "iconName": "play", "image": "" }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "block": "styble/column",
+        "children": [
+          {
+            "block": "styble/advanced-image",
+            "attrs": {
+              "selectImage": {},
+              "selectImageId": "",
+              "imgAltText": "Styble editor showing a two-column hero section being assembled",
+              "imgAspectRatio": "original"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

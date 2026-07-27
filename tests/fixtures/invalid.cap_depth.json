@@ -1,0 +1,51 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          {
+            "block": "styble/container",
+            "children": [
+              {
+                "block": "styble/column",
+                "children": [
+                  {
+                    "block": "styble/container",
+                    "children": [
+                      {
+                        "block": "styble/column",
+                        "children": [
+                          {
+                            "block": "styble/container",
+                            "children": [
+                              {
+                                "block": "styble/column",
+                                "children": [
+                                  {
+                                    "block": "styble/container",
+                                    "children": [
+                                      {
+                                        "block": "styble/column"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

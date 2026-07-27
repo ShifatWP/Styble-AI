@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/advanced-image",
+    "attrs": {
+      "selectImage": { "url": "https://images.example.com/hero-dashboard.jpg" },
+      "selectImageId": 4821,
+      "imgAltText": "Dashboard"
+    }
+  }
+}

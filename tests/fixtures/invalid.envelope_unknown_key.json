@@ -1,0 +1,7 @@
+{
+  "version": "0.1.0",
+  "notes": "model chatter that does not belong in the envelope",
+  "root": {
+    "block": "styble/separator"
+  }
+}

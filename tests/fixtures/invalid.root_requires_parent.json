@@ -1,0 +1,7 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/advanced-button",
+    "attrs": { "labelText": "Orphan button" }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/hero-section",
+    "attrs": { "layout": "l-1" }
+  }
+}

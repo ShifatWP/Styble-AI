@@ -1,0 +1,29 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "children": [
+      {
+        "block": "styble/column"
+      },
+      {
+        "block": "styble/column"
+      },
+      {
+        "block": "styble/column"
+      },
+      {
+        "block": "styble/column"
+      },
+      {
+        "block": "styble/column"
+      },
+      {
+        "block": "styble/column"
+      },
+      {
+        "block": "styble/column"
+      }
+    ]
+  }
+}

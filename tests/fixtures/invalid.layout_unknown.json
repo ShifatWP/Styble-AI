@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": { "layout": "l-2-65-35", "layoutSelected": true, "columns": 2 },
+    "children": [
+      { "block": "styble/column" },
+      { "block": "styble/column" }
+    ]
+  }
+}

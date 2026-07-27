@@ -27,6 +27,8 @@ require_once STYBLE_AI_DIR . 'includes/class-theme-context.php';
 require_once STYBLE_AI_DIR . 'includes/class-catalog.php';
 require_once STYBLE_AI_DIR . 'includes/class-brand-context.php';
 require_once STYBLE_AI_DIR . 'includes/class-prompt.php';
+require_once STYBLE_AI_DIR . 'includes/class-validation-result.php';
+require_once STYBLE_AI_DIR . 'includes/class-validator.php';
 require_once STYBLE_AI_DIR . 'includes/class-anthropic-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-openai-compatible-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-rest-controller.php';
