@@ -155,6 +155,7 @@ class Styble_AI_Prompt {
 		$sections = array(
 			$this->rules(),
 			$this->block_reference(),
+			$this->value_shapes(),
 			$this->layout_reference(),
 		);
 
@@ -180,6 +181,7 @@ class Styble_AI_Prompt {
 				'- Emit a single root block. A hero, a features row, a CTA — one section per call.',
 				'- Set attributes sparsely. Omit anything you are not deliberately changing; every block fills its own defaults.',
 				'- Only the attribute keys listed for a block below are legal. Any other key is rejected.',
+				'- Attributes tagged (responsive), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
 				'- Write real, specific, publishable copy. Never lorem ipsum, never "Your text here".',
 				'- Images are placeholders: set imgAltText describing the intended photo, and never invent a URL or attachment id.',
 				'- A styble/container holds only styble/column children (or nested containers). Content goes inside the columns.',
@@ -201,7 +203,16 @@ class Styble_AI_Prompt {
 			$line = '- `' . $name . '`';
 
 			$owned = isset( self::APPLIER_OWNED[ $name ] ) ? self::APPLIER_OWNED[ $name ] : array();
-			$attrs = array_values( array_diff( array_keys( $this->catalog->editable_attrs( $name ) ), $owned ) );
+			$defs  = $this->catalog->editable_attrs( $name );
+
+			$attrs = array();
+			foreach ( $defs as $attr => $def ) {
+				if ( in_array( $attr, $owned, true ) ) {
+					continue;
+				}
+				$tag     = self::attr_tag( $attr, $def );
+				$attrs[] = $tag ? $attr . ' (' . $tag . ')' : $attr;
+			}
 			$line .= $attrs ? ' — attrs: ' . implode( ', ', $attrs ) : ' — no attrs to set';
 
 			$children = $this->catalog->allowed_children( $name );
@@ -221,6 +232,123 @@ class Styble_AI_Prompt {
 
 		$lines[] = '';
 		$lines[] = 'Content goes in these attributes: advanced-text uses advancedTextContent with textHTMLTag (h1..h4 for headings, p for body); advanced-button uses labelText and addLink; advanced-image uses imgAltText; info-box uses layoutType (layout1..layout4) and badgeText; icon-list-item uses listText; separator uses separatorText, and set separatorLabelEnable to false for a plain rule with no caption.';
+
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Compact JSON for a prompt example.
+	 *
+	 * Not wp_json_encode(): this class also renders from the CLI via
+	 * scripts/dump-prompt.php, outside WordPress.
+	 *
+	 * @param mixed $value Value to encode.
+	 *
+	 * @return string
+	 */
+	private static function json( $value ) {
+		return (string) json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+	}
+
+	/**
+	 * Classify an attribute so the model knows what kind of value it takes.
+	 *
+	 * Derived from the catalog's recorded default, never from the name — the
+	 * names are actively misleading. "gapBetween" sounds like it takes a number
+	 * or a {top,bottom} box; it is a full responsive object, and a model that
+	 * guesses gets three validator errors.
+	 *
+	 * Plain strings get no tag: they are the common case and tagging them all
+	 * would bury the ones that matter.
+	 *
+	 * @param string $attr Attribute name.
+	 * @param array  $def  Catalog definition (type + default).
+	 *
+	 * @return string Tag, or '' when no tag is warranted.
+	 */
+	private static function attr_tag( $attr, $def ) {
+		$type    = isset( $def['type'] ) ? $def['type'] : 'mixed';
+		$default = isset( $def['default'] ) ? $def['default'] : null;
+
+		// block.json declares this a number, but the contract requires it stay
+		// blank so the user picks the attachment. Tagging it "number" would be an
+		// invitation to invent an id.
+		if ( 'selectImageId' === $attr ) {
+			return 'always ""';
+		}
+
+		if ( 'boolean' === $type ) {
+			return 'true/false';
+		}
+		if ( 'number' === $type ) {
+			return 'number';
+		}
+		if ( 'array' === $type ) {
+			return 'array';
+		}
+		if ( 'object' !== $type ) {
+			return '';
+		}
+
+		if ( is_array( $default ) && isset( $default['device'] ) && array_key_exists( 'unit', $default ) ) {
+			return 'responsive';
+		}
+		if ( is_array( $default ) && array_key_exists( 'iconName', $default ) ) {
+			return 'icon';
+		}
+		if ( 'selectImage' === $attr ) {
+			return 'image';
+		}
+		return 'object';
+	}
+
+	/**
+	 * Literal examples of every object shape in play, taken from the catalog's
+	 * own defaults so they cannot be wrong.
+	 *
+	 * Object-valued attributes are 17 of the 60 in the v1 allowlist, and without
+	 * this the prompt names them but never says what they hold — which is how a
+	 * model ends up sending {"top":16,"bottom":16} for a responsive value.
+	 *
+	 * @return string
+	 */
+	private function value_shapes() {
+		$responsive = null;
+		$icon       = null;
+
+		foreach ( $this->catalog->allowlisted_names() as $name ) {
+			foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
+				$tag = self::attr_tag( $attr, $def );
+				if ( 'responsive' === $tag && null === $responsive ) {
+					$responsive = $def['default'];
+				}
+				if ( 'icon' === $tag && null === $icon ) {
+					$icon = $def['default'];
+				}
+			}
+		}
+
+		$lines = array( '# Attribute value shapes', '' );
+
+		if ( null !== $responsive ) {
+			$lines[] = '`(responsive)` — an object of per-device values. Desktop is required; Tablet and Mobile may be "" to inherit it. The ONLY top-level keys are `device` and `unit`. Never `top`/`bottom`, never a bare number.';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json( $responsive );
+			$lines[] = '```';
+			$lines[] = '';
+		}
+
+		if ( null !== $icon ) {
+			$lines[] = '`(icon)` — an object, not an icon name. Put the name in `iconName`:';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json( $icon );
+			$lines[] = '```';
+			$lines[] = '';
+		}
+
+		$lines[] = '`(image)` — always the empty object `{}`, with `selectImageId` left as `""`. You describe the picture in `imgAltText`; the user picks the file.';
 
 		return implode( "\n", $lines );
 	}
