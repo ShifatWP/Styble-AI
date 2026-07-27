@@ -79,7 +79,10 @@ class Styble_AI_Settings {
 
 		// Provider dropdown: Anthropic (native) + every OpenAI-compatible preset.
 		$presets   = Styble_AI_OpenAI_Compatible_Provider::presets();
-		$providers = array( 'anthropic' => array( 'label' => 'Anthropic — Claude (native)', 'model' => 'claude-sonnet-5', 'signup' => 'https://console.anthropic.com/settings/keys' ) );
+		// Keep 'model' in step with Styble_AI_REST_Controller::make_provider() —
+		// it is shown as the field placeholder, so a stale value here tells the
+		// user they will get one model when they would actually get another.
+		$providers = array( 'anthropic' => array( 'label' => 'Anthropic — Claude (native)', 'model' => 'claude-opus-5', 'signup' => 'https://console.anthropic.com/settings/keys' ) );
 		foreach ( $presets as $id => $p ) {
 			$providers[ $id ] = $p;
 		}
@@ -121,7 +124,7 @@ class Styble_AI_Settings {
 							<input name="styble_ai_model" id="styble_ai_model" type="text"
 								value="<?php echo esc_attr( $model ); ?>" class="regular-text"
 								placeholder="<?php echo esc_attr( $providers[ $provider ]['model'] ); ?>" />
-							<p class="description">Leave blank to use the provider's default (shown as the placeholder). Examples: <code>llama-3.3-70b-versatile</code> (Groq), <code>llama-3.3-70b</code> (Cerebras), <code>deepseek-chat</code>, <code>claude-sonnet-5</code>.<br /><strong>Image uploads need a vision model:</strong> <code>meta-llama/llama-4-scout-17b-16e-instruct</code> (Groq, free), <code>gemini-2.0-flash</code> (Gemini, free), <code>claude-sonnet-5</code>, or <code>gpt-4o</code>. Text-only models (e.g. <code>llama-3.3-70b-versatile</code>) reject images.</p>
+							<p class="description">Leave blank to use the provider's default (shown as the placeholder). Examples: <code>llama-3.3-70b-versatile</code> (Groq), <code>llama-3.3-70b</code> (Cerebras), <code>deepseek-chat</code>, <code>claude-opus-5</code>.<br /><strong>Image uploads need a vision model:</strong> <code>meta-llama/llama-4-scout-17b-16e-instruct</code> (Groq, free), <code>gemini-2.0-flash</code> (Gemini, free), <code>claude-opus-5</code>, or <code>gpt-4o</code>. Text-only models (e.g. <code>llama-3.3-70b-versatile</code>) reject images.</p>
 						</td>
 					</tr>
 					<tr id="styble_ai_base_url_row">

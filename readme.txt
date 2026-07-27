@@ -33,7 +33,7 @@ and the AI reconstructs it as native blocks. This needs a model that supports
 BOTH vision and function calling:
   * Groq    meta-llama/llama-4-scout-17b-16e-instruct   (free)
   * Gemini  gemini-2.0-flash                            (free)
-  * Claude  claude-sonnet-5
+  * Claude  claude-opus-5
   * OpenAI  gpt-4o
 Text-only models (e.g. llama-3.3-70b-versatile) will reject images. Images are
 downscaled in the browser before upload; max 8 MB per image.
@@ -64,7 +64,7 @@ Step 2 — Pick a provider and get a key
     DeepSeek    Cheap       deepseek-chat                https://platform.deepseek.com/api_keys
     Mistral     Free tier   mistral-large-latest         https://console.mistral.ai/api-keys
     Together    Paid        meta-llama/Llama-3.3-70B-Instruct-Turbo   https://api.together.xyz/settings/api-keys
-    Anthropic   Paid        claude-sonnet-5              https://console.anthropic.com/settings/keys
+    Anthropic   Paid        claude-opus-5              https://console.anthropic.com/settings/keys
 
   * OpenRouter has free model variants, but not every model there supports tools —
     stick to a Llama 3.3 70B instruct model.
