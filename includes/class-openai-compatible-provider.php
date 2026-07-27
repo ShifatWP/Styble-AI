@@ -7,7 +7,7 @@
  * Together, or a self-hosted endpoint. Lets you run the experiment on a free
  * (or near-free) key instead of Anthropic.
  *
- * Same contract as ABC_Anthropic_Provider:
+ * Same contract as Styble_AI_Anthropic_Provider:
  *   generate($prompt, $context)             -> IR for new sections.
  *   edit($prompt, $context, $selection)     -> revised IR for selected blocks.
  * Structured output is forced the same way — a single "function" whose
@@ -22,14 +22,14 @@
  * - The result lives in choices[0].message.tool_calls[0].function.arguments,
  *   which is a JSON *string* we must decode (some providers hand back an object).
  *
- * @package AI_Block_Composer
+ * @package Styble_AI
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class ABC_OpenAI_Compatible_Provider {
+class Styble_AI_OpenAI_Compatible_Provider {
 
 	private $api_key;
 	private $model;
@@ -108,7 +108,7 @@ class ABC_OpenAI_Compatible_Provider {
 	 * Generate brand-new sections from a description.
 	 *
 	 * @param string $prompt  User's description of the section(s) to build.
-	 * @param string $context Theme summary from ABC_Theme_Context.
+	 * @param string $context Theme summary from Styble_AI_Theme_Context.
 	 * @param string $image   Optional data:image/*;base64 URL of a design reference.
 	 * @return array|WP_Error Decoded IR ( ['sections' => [...]] ) or error.
 	 */
@@ -163,13 +163,13 @@ class ABC_OpenAI_Compatible_Provider {
 	 */
 	private function send( $system, $user, $tool, $temperature ) {
 		if ( empty( $this->api_key ) ) {
-			return new WP_Error( 'abc_no_key', 'No API key configured. Add one under Settings → AI Block Composer.' );
+			return new WP_Error( 'styble_ai_no_key', 'No API key configured. Add one under Settings → Styble AI.' );
 		}
 		if ( empty( $this->endpoint ) ) {
-			return new WP_Error( 'abc_no_endpoint', 'No API endpoint configured. Pick a provider or set a custom base URL under Settings → AI Block Composer.' );
+			return new WP_Error( 'styble_ai_no_endpoint', 'No API endpoint configured. Pick a provider or set a custom base URL under Settings → Styble AI.' );
 		}
 		if ( empty( $this->model ) ) {
-			return new WP_Error( 'abc_no_model', 'No model configured. Set a model id under Settings → AI Block Composer.' );
+			return new WP_Error( 'styble_ai_no_model', 'No model configured. Set a model id under Settings → Styble AI.' );
 		}
 
 		$body = array(
@@ -200,7 +200,7 @@ class ABC_OpenAI_Compatible_Provider {
 		// OpenRouter asks for attribution headers; harmless elsewhere.
 		if ( false !== strpos( $this->endpoint, 'openrouter.ai' ) ) {
 			$headers['HTTP-Referer'] = home_url();
-			$headers['X-Title']      = 'AI Block Composer';
+			$headers['X-Title']      = 'Styble AI';
 		}
 
 		$response = wp_remote_post(
@@ -229,7 +229,7 @@ class ABC_OpenAI_Compatible_Provider {
 			} elseif ( isset( $data['message'] ) ) {
 				$msg = $data['message'];
 			}
-			return new WP_Error( 'abc_api_error', 'AI request failed: ' . $msg );
+			return new WP_Error( 'styble_ai_api_error', 'AI request failed: ' . $msg );
 		}
 
 		// Pull the forced function call arguments (our IR).
@@ -239,14 +239,14 @@ class ABC_OpenAI_Compatible_Provider {
 		}
 
 		if ( null === $args ) {
-			return new WP_Error( 'abc_no_tool_use', 'The model did not return structured layout data. The chosen model may not support function calling — try Groq/Cerebras with Llama 3.3 70B.' );
+			return new WP_Error( 'styble_ai_no_tool_use', 'The model did not return structured layout data. The chosen model may not support function calling — try Groq/Cerebras with Llama 3.3 70B.' );
 		}
 
 		// arguments is normally a JSON string; some providers hand back an object.
 		$ir = is_array( $args ) ? $args : json_decode( $args, true );
 
 		if ( ! is_array( $ir ) ) {
-			return new WP_Error( 'abc_bad_json', 'The model returned malformed layout JSON.' );
+			return new WP_Error( 'styble_ai_bad_json', 'The model returned malformed layout JSON.' );
 		}
 
 		return $ir;

@@ -7,14 +7,14 @@
  * (that format is fragile and models hallucinate it). Instead the AI fills a
  * clean JSON schema and THIS class deterministically produces correct markup.
  *
- * @package AI_Block_Composer
+ * @package Styble_AI
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class ABC_Serializer {
+class Styble_AI_Serializer {
 
 	/**
 	 * Serialize the full IR ( { "sections": [ ... ] } ) into a block-markup string.

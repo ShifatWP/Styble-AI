@@ -1,8 +1,26 @@
-# AI Block Composer — Project Guide (for Claude Code)
+# Styble AI — Project Guide (for Claude Code)
 
-> Drop this file at the plugin root (`ai-block-composer/CLAUDE.md`). It orients any
-> agent continuing this project: what it is, what's built, the rules that must not
-> be broken, and what to build next.
+> ## ⚠️ READ THIS FIRST — this file is inherited, and partly out of date
+>
+> Styble AI is a **fork of AI Block Composer** (`../ai-block-composer/`, which
+> still lives on unchanged and still ships core blocks). Everything below is
+> ABC's guide, renamed. It accurately describes **where this fork started**, not
+> where it is going.
+>
+> The active plan is **`docs/STYBLE_BLOCKS_MIGRATION_PLAN.md`** — read it before
+> this file. Two things below are already superseded by it:
+>
+> - **Output target.** ABC emits WordPress core blocks. Styble AI is being
+>   retargeted at **Styble blocks** (`styble/*`, from `../styble-pro/`).
+> - **The serializer.** `class-serializer.php` is scheduled for **deletion**, not
+>   extension. Styble blocks are dynamic with 100–180+ generated attributes, so a
+>   catalog-driven applier replaces string concatenation.
+>
+> What carries over unchanged: §2's core rule (the model never writes block HTML),
+> the provider contract, the settings screen, the sidebar. Naming is now `Styble_AI_`
+> / `styble_ai_` / `styble-ai/v1` / text domain `styble-ai`.
+>
+> This banner comes down when the migration lands and the guide is rewritten.
 
 ## 1. What this is
 

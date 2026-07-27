@@ -6,14 +6,14 @@
  * This is the differentiator: context-awareness. We hand the model the palette
  * and font sizes; the serializer stays deterministic.
  *
- * @package AI_Block_Composer
+ * @package Styble_AI
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class ABC_Theme_Context {
+class Styble_AI_Theme_Context {
 
 	/**
 	 * Return a short, prompt-friendly description of the theme's design tokens.

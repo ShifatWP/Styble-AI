@@ -1,12 +1,18 @@
-=== AI Block Composer (Experimental) ===
+=== Styble AI (Experimental) ===
 Requires at least: 6.4
 Requires PHP: 7.4
 License: GPLv2 or later
 
-Generate WordPress native (core) block sections from AI prompts, inside the editor.
+Generate Styble block sections from AI prompts, inside the editor.
+
+== Migration in progress ==
+Styble AI is forked from AI Block Composer, which generates WordPress CORE
+blocks. The fork is being retargeted at Styble blocks — see
+docs/STYBLE_BLOCKS_MIGRATION_PLAN.md. Until the catalog, validator and Styble
+applier land, everything below still describes core-block output.
 
 == What this experimental build does ==
-* Adds an "AI Block Composer" sidebar to the block editor.
+* Adds a "Styble AI" sidebar to the block editor.
 * You describe a section or layout; it is inserted as fully editable CORE blocks.
 * Edit any existing block in place — select it, click "Edit with AI" in its
   toolbar, describe the change.

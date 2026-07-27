@@ -1,18 +1,18 @@
 <?php
 /**
- * REST endpoint: POST /wp-json/ai-block-composer/v1/generate
+ * REST endpoint: POST /wp-json/styble-ai/v1/generate
  *
  * Flow: prompt -> theme context -> provider (structured JSON) -> serializer
  * -> validate markup -> return markup to the editor for insertion.
  *
- * @package AI_Block_Composer
+ * @package Styble_AI
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class ABC_REST_Controller {
+class Styble_AI_REST_Controller {
 
 	public function register() {
 		add_action( 'rest_api_init', array( $this, 'routes' ) );
@@ -20,7 +20,7 @@ class ABC_REST_Controller {
 
 	public function routes() {
 		register_rest_route(
-			'ai-block-composer/v1',
+			'styble-ai/v1',
 			'/generate',
 			array(
 				'methods'             => 'POST',
@@ -65,22 +65,22 @@ class ABC_REST_Controller {
 		$image     = trim( (string) $request->get_param( 'image' ) );
 
 		if ( '' === $prompt ) {
-			return new WP_Error( 'abc_empty', 'Please describe what to build.', array( 'status' => 400 ) );
+			return new WP_Error( 'styble_ai_empty', 'Please describe what to build.', array( 'status' => 400 ) );
 		}
 
 		// Validate an attached design image up front — never silently drop it.
 		if ( '' !== $image ) {
 			if ( 0 !== strpos( $image, 'data:image/' ) ) {
-				return new WP_Error( 'abc_bad_image', 'Attached file is not a valid image.', array( 'status' => 400 ) );
+				return new WP_Error( 'styble_ai_bad_image', 'Attached file is not a valid image.', array( 'status' => 400 ) );
 			}
 			// ~8 MB cap on the raw data URL (base64 is ~33% larger than the file).
 			if ( strlen( $image ) > 8 * 1024 * 1024 ) {
-				return new WP_Error( 'abc_image_too_large', 'Image is too large. Please use one under 8 MB.', array( 'status' => 413 ) );
+				return new WP_Error( 'styble_ai_image_too_large', 'Image is too large. Please use one under 8 MB.', array( 'status' => 413 ) );
 			}
 		}
 
 		$provider = $this->make_provider();
-		$context  = ( new ABC_Theme_Context() )->summary();
+		$context  = ( new Styble_AI_Theme_Context() )->summary();
 
 		// A selection means editing existing blocks (text-only). Otherwise generate
 		// new sections, optionally from a design image.
@@ -91,7 +91,7 @@ class ABC_REST_Controller {
 			return new WP_Error( $ir->get_error_code(), $ir->get_error_message(), array( 'status' => 502 ) );
 		}
 
-		$markup = ( new ABC_Serializer() )->serialize( $ir );
+		$markup = ( new Styble_AI_Serializer() )->serialize( $ir );
 
 		// Validation pass: re-parse and confirm we produced real blocks and no
 		// classic-editor fallback (core/freeform), which signals invalid markup.
@@ -102,12 +102,12 @@ class ABC_REST_Controller {
 				$has_real = true;
 			}
 			if ( 'core/freeform' === $b['blockName'] ) {
-				return new WP_Error( 'abc_invalid_markup', 'Generated markup did not validate. Please try again.', array( 'status' => 500 ) );
+				return new WP_Error( 'styble_ai_invalid_markup', 'Generated markup did not validate. Please try again.', array( 'status' => 500 ) );
 			}
 		}
 
 		if ( ! $has_real ) {
-			return new WP_Error( 'abc_empty_result', 'The model returned no usable blocks. Try a more specific prompt.', array( 'status' => 500 ) );
+			return new WP_Error( 'styble_ai_empty_result', 'The model returned no usable blocks. Try a more specific prompt.', array( 'status' => 500 ) );
 		}
 
 		return rest_ensure_response(
@@ -137,18 +137,18 @@ class ABC_REST_Controller {
 	 * Cerebras, OpenRouter, DeepSeek, Mistral, Together, or a custom base URL).
 	 */
 	private function make_provider() {
-		$provider = get_option( 'abc_provider', 'anthropic' );
-		$api_key  = get_option( 'abc_api_key', '' );
-		$model    = get_option( 'abc_model', '' );
+		$provider = get_option( 'styble_ai_provider', 'anthropic' );
+		$api_key  = get_option( 'styble_ai_api_key', '' );
+		$model    = get_option( 'styble_ai_model', '' );
 
 		if ( 'anthropic' === $provider ) {
-			return new ABC_Anthropic_Provider( $api_key, $model ? $model : 'claude-sonnet-5' );
+			return new Styble_AI_Anthropic_Provider( $api_key, $model ? $model : 'claude-sonnet-5' );
 		}
 
-		$presets  = ABC_OpenAI_Compatible_Provider::presets();
+		$presets  = Styble_AI_OpenAI_Compatible_Provider::presets();
 		$endpoint = '';
 		if ( 'custom' === $provider ) {
-			$endpoint = get_option( 'abc_base_url', '' );
+			$endpoint = get_option( 'styble_ai_base_url', '' );
 		} elseif ( isset( $presets[ $provider ] ) ) {
 			$endpoint = $presets[ $provider ]['endpoint'];
 			if ( '' === $model && ! empty( $presets[ $provider ]['model'] ) ) {
@@ -156,6 +156,6 @@ class ABC_REST_Controller {
 			}
 		}
 
-		return new ABC_OpenAI_Compatible_Provider( $api_key, $model, $endpoint );
+		return new Styble_AI_OpenAI_Compatible_Provider( $api_key, $model, $endpoint );
 	}
 }

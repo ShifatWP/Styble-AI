@@ -1,5 +1,5 @@
 /**
- * AI Block Composer — editor sidebar + per-block AI edit.
+ * Styble AI — editor sidebar + per-block AI edit.
  *
  * Build-free: uses the global `wp` object and wp.element.createElement instead
  * of JSX, so the plugin runs by just enqueuing this file (no npm/webpack).
@@ -102,17 +102,17 @@
 	}
 
 	var TONES = [
-		{ id: 'auto', label: __( 'Auto', 'ai-block-composer' ), instr: '' },
-		{ id: 'friendly', label: __( 'Friendly', 'ai-block-composer' ), instr: 'Write the copy in a warm, friendly, conversational tone.' },
-		{ id: 'professional', label: __( 'Professional', 'ai-block-composer' ), instr: 'Write the copy in a polished, professional, businesslike tone.' },
-		{ id: 'bold', label: __( 'Bold', 'ai-block-composer' ), instr: 'Write the copy in a bold, punchy, high-energy tone.' }
+		{ id: 'auto', label: __( 'Auto', 'styble-ai' ), instr: '' },
+		{ id: 'friendly', label: __( 'Friendly', 'styble-ai' ), instr: 'Write the copy in a warm, friendly, conversational tone.' },
+		{ id: 'professional', label: __( 'Professional', 'styble-ai' ), instr: 'Write the copy in a polished, professional, businesslike tone.' },
+		{ id: 'bold', label: __( 'Bold', 'styble-ai' ), instr: 'Write the copy in a bold, punchy, high-energy tone.' }
 	];
 
 	var EXAMPLES = [
-		{ icon: 'features', title: __( 'Features', 'ai-block-composer' ), text: 'A features section with 3 columns: fast, secure, affordable — each with a heading and a sentence.' },
-		{ icon: 'testimonial', title: __( 'Testimonial', 'ai-block-composer' ), text: 'A testimonial section, light tone, with a quote and the customer name.' },
-		{ icon: 'cta', title: __( 'Call to action', 'ai-block-composer' ), text: 'A call-to-action band, accent tone, full width, headline + one button.' },
-		{ icon: 'pricing', title: __( 'Pricing', 'ai-block-composer' ), text: 'A pricing section with three plans and a highlighted recommended tier.' }
+		{ icon: 'features', title: __( 'Features', 'styble-ai' ), text: 'A features section with 3 columns: fast, secure, affordable — each with a heading and a sentence.' },
+		{ icon: 'testimonial', title: __( 'Testimonial', 'styble-ai' ), text: 'A testimonial section, light tone, with a quote and the customer name.' },
+		{ icon: 'cta', title: __( 'Call to action', 'styble-ai' ), text: 'A call-to-action band, accent tone, full width, headline + one button.' },
+		{ icon: 'pricing', title: __( 'Pricing', 'styble-ai' ), text: 'A pricing section with three plans and a highlighted recommended tier.' }
 	];
 
 	// One-tap edit instructions for the block popover.
@@ -125,80 +125,80 @@
 	];
 
 	var STYLE =
-		'.abc-body{padding:16px}' +
-		'.abc-title{text-transform:uppercase;letter-spacing:.5px;font-weight:700;font-size:12px;color:#1e1e1e;margin:0 0 12px;padding:0}' +
-		'.abc-brand{display:flex;align-items:center;gap:12px;padding:16px 16px 14px;border-bottom:1px solid #e9eaec}' +
-		'.abc-brand-ico{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:linear-gradient(180deg,#4aa576,#3d986a);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(31,120,80,.35)}' +
-		'.abc-brand-title{font-weight:700;font-size:15px;line-height:1.2;color:#1e1e1e}' +
-		'.abc-brand-sub{font-size:11.5px;color:#7a8085;margin-top:2px}' +
-		'.abc-intro{color:#50575e;font-size:13px;line-height:1.6;margin:0 0 14px}' +
-		'.abc-label-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}' +
-		'.abc-label{font-weight:600;font-size:12px;color:#1e1e1e}' +
-		'.abc-count{font-size:11px;color:#9aa0a6;font-variant-numeric:tabular-nums}' +
-		'.abc-ta{width:100%;box-sizing:border-box;border:1px solid #d5d7db;border-radius:8px;padding:12px;font-size:13px;line-height:1.55;color:#1e1e1e;resize:vertical;min-height:96px;font-family:inherit;transition:border-color .12s,box-shadow .12s}' +
-		'.abc-ta::placeholder{color:#9297a0}' +
-		'.abc-ta:focus{outline:none;border-color:#3d986a;box-shadow:0 0 0 3px rgba(63,154,107,.18)}' +
-		'.abc-ta:disabled{background:#f6f7f7;color:#8a8f94}' +
-		'.abc-tone{margin-top:12px;padding:12px;border:1px solid #e6e7e9;border-radius:8px;background:#fafbfb}' +
-		'.abc-tone-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}' +
-		'.abc-tone-label{font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#8a8f94;margin-right:2px}' +
-		'.abc-chip{padding:5px 13px;border-radius:999px;border:1px solid #d5d7db;background:#fff;color:#3c434a;font-size:12px;font-weight:500;cursor:pointer;transition:all .12s}' +
-		'.abc-chip:hover{border-color:#3d986a;color:#1c7c4a}' +
-		'.abc-chip[aria-pressed="true"]{background:#1c8250;border-color:#1c8250;color:#fff}' +
-		'.abc-actions{display:flex;align-items:center;gap:12px}' +
-		'.abc-generate{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;padding:12px 16px;font-size:13.5px;font-weight:600;color:#fff;cursor:pointer;background:linear-gradient(180deg,#4aa576,#3d986a);box-shadow:0 1px 2px rgba(31,120,80,.35);transition:filter .12s,transform .04s}' +
-		'.abc-generate:hover:not(:disabled){filter:brightness(1.05)}' +
-		'.abc-generate:active:not(:disabled){transform:translateY(1px)}' +
-		'.abc-generate:disabled{background:#a9d3bd;box-shadow:none;cursor:not-allowed}' +
-		'.abc-clear{border:0;background:none;color:#7a8085;font-size:13px;cursor:pointer;padding:6px 4px}' +
-		'.abc-clear:hover:not(:disabled){color:#1e1e1e;text-decoration:underline}' +
-		'.abc-clear:disabled{color:#c3c7cb;cursor:default}' +
-		'.abc-notice{margin-top:14px}' +
-		'.abc-try{margin-top:22px;border-top:1px solid #e9eaec;padding-top:16px}' +
-		'.abc-try-head{display:flex;align-items:center;gap:7px;font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#1e1e1e;margin:0 0 10px}' +
-		'.abc-try-head .abc-star{color:#eab308}' +
-		'.abc-card{position:relative;display:flex;gap:12px;width:100%;text-align:left;border:1px solid #e2e4e7;background:#fff;border-radius:10px;padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s}' +
-		'.abc-card:hover{border-color:#3d986a;background:#f4faf6;box-shadow:0 2px 8px rgba(31,120,80,.1)}' +
-		'.abc-card:focus-visible{outline:2px solid #3d986a;outline-offset:1px}' +
-		'.abc-card:disabled{opacity:.55;cursor:not-allowed}' +
-		'.abc-card-ico{flex:0 0 auto;width:34px;height:34px;border-radius:8px;background:#e7f4ec;color:#1c8250;display:flex;align-items:center;justify-content:center}' +
-		'.abc-card-title{font-weight:700;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;color:#1c8250;margin-bottom:3px;display:block}' +
-		'.abc-card-text{font-size:12px;line-height:1.5;color:#50575e}' +
-		'.abc-card-arrow{position:absolute;top:12px;right:12px;color:#b3bcc2}' +
-		'.abc-card:hover .abc-card-arrow{color:#3d986a}' +
-		'.abc-foot{position:sticky;bottom:0;display:flex;align-items:center;gap:7px;margin:18px -16px -16px;padding:12px 16px;background:#fbfcfb;border-top:1px solid #e9eaec;color:#7a8085;font-size:11.5px}' +
-		'.abc-foot svg{flex:0 0 auto;color:#3d986a}' +
+		'.sai-body{padding:16px}' +
+		'.sai-title{text-transform:uppercase;letter-spacing:.5px;font-weight:700;font-size:12px;color:#1e1e1e;margin:0 0 12px;padding:0}' +
+		'.sai-brand{display:flex;align-items:center;gap:12px;padding:16px 16px 14px;border-bottom:1px solid #e9eaec}' +
+		'.sai-brand-ico{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:linear-gradient(180deg,#4aa576,#3d986a);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(31,120,80,.35)}' +
+		'.sai-brand-title{font-weight:700;font-size:15px;line-height:1.2;color:#1e1e1e}' +
+		'.sai-brand-sub{font-size:11.5px;color:#7a8085;margin-top:2px}' +
+		'.sai-intro{color:#50575e;font-size:13px;line-height:1.6;margin:0 0 14px}' +
+		'.sai-label-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}' +
+		'.sai-label{font-weight:600;font-size:12px;color:#1e1e1e}' +
+		'.sai-count{font-size:11px;color:#9aa0a6;font-variant-numeric:tabular-nums}' +
+		'.sai-ta{width:100%;box-sizing:border-box;border:1px solid #d5d7db;border-radius:8px;padding:12px;font-size:13px;line-height:1.55;color:#1e1e1e;resize:vertical;min-height:96px;font-family:inherit;transition:border-color .12s,box-shadow .12s}' +
+		'.sai-ta::placeholder{color:#9297a0}' +
+		'.sai-ta:focus{outline:none;border-color:#3d986a;box-shadow:0 0 0 3px rgba(63,154,107,.18)}' +
+		'.sai-ta:disabled{background:#f6f7f7;color:#8a8f94}' +
+		'.sai-tone{margin-top:12px;padding:12px;border:1px solid #e6e7e9;border-radius:8px;background:#fafbfb}' +
+		'.sai-tone-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}' +
+		'.sai-tone-label{font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#8a8f94;margin-right:2px}' +
+		'.sai-chip{padding:5px 13px;border-radius:999px;border:1px solid #d5d7db;background:#fff;color:#3c434a;font-size:12px;font-weight:500;cursor:pointer;transition:all .12s}' +
+		'.sai-chip:hover{border-color:#3d986a;color:#1c7c4a}' +
+		'.sai-chip[aria-pressed="true"]{background:#1c8250;border-color:#1c8250;color:#fff}' +
+		'.sai-actions{display:flex;align-items:center;gap:12px}' +
+		'.sai-generate{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;padding:12px 16px;font-size:13.5px;font-weight:600;color:#fff;cursor:pointer;background:linear-gradient(180deg,#4aa576,#3d986a);box-shadow:0 1px 2px rgba(31,120,80,.35);transition:filter .12s,transform .04s}' +
+		'.sai-generate:hover:not(:disabled){filter:brightness(1.05)}' +
+		'.sai-generate:active:not(:disabled){transform:translateY(1px)}' +
+		'.sai-generate:disabled{background:#a9d3bd;box-shadow:none;cursor:not-allowed}' +
+		'.sai-clear{border:0;background:none;color:#7a8085;font-size:13px;cursor:pointer;padding:6px 4px}' +
+		'.sai-clear:hover:not(:disabled){color:#1e1e1e;text-decoration:underline}' +
+		'.sai-clear:disabled{color:#c3c7cb;cursor:default}' +
+		'.sai-notice{margin-top:14px}' +
+		'.sai-try{margin-top:22px;border-top:1px solid #e9eaec;padding-top:16px}' +
+		'.sai-try-head{display:flex;align-items:center;gap:7px;font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#1e1e1e;margin:0 0 10px}' +
+		'.sai-try-head .sai-star{color:#eab308}' +
+		'.sai-card{position:relative;display:flex;gap:12px;width:100%;text-align:left;border:1px solid #e2e4e7;background:#fff;border-radius:10px;padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s}' +
+		'.sai-card:hover{border-color:#3d986a;background:#f4faf6;box-shadow:0 2px 8px rgba(31,120,80,.1)}' +
+		'.sai-card:focus-visible{outline:2px solid #3d986a;outline-offset:1px}' +
+		'.sai-card:disabled{opacity:.55;cursor:not-allowed}' +
+		'.sai-card-ico{flex:0 0 auto;width:34px;height:34px;border-radius:8px;background:#e7f4ec;color:#1c8250;display:flex;align-items:center;justify-content:center}' +
+		'.sai-card-title{font-weight:700;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;color:#1c8250;margin-bottom:3px;display:block}' +
+		'.sai-card-text{font-size:12px;line-height:1.5;color:#50575e}' +
+		'.sai-card-arrow{position:absolute;top:12px;right:12px;color:#b3bcc2}' +
+		'.sai-card:hover .sai-card-arrow{color:#3d986a}' +
+		'.sai-foot{position:sticky;bottom:0;display:flex;align-items:center;gap:7px;margin:18px -16px -16px;padding:12px 16px;background:#fbfcfb;border-top:1px solid #e9eaec;color:#7a8085;font-size:11.5px}' +
+		'.sai-foot svg{flex:0 0 auto;color:#3d986a}' +
 		// Per-block toolbar popover.
-		'.abc-pop{width:300px;max-width:88vw;padding:14px}' +
-		'.abc-pop-head{display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;color:#1e1e1e;margin:0 0 10px}' +
-		'.abc-pop .abc-ta{min-height:68px}' +
-		'.abc-pop-err{color:#b32d2e;font-size:12px;line-height:1.4;margin:8px 0 0}' +
-		'.abc-pop-actions{margin-top:10px}' +
-		'.abc-quick-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}' +
-		'.abc-quick{padding:5px 11px;border-radius:999px;border:1px solid #d5d7db;background:#fff;color:#3c434a;font-size:11.5px;cursor:pointer;transition:all .12s}' +
-		'.abc-quick:hover:not(:disabled){border-color:#3d986a;color:#1c7c4a;background:#f4faf6}' +
-		'.abc-quick:disabled{opacity:.55;cursor:not-allowed}' +
+		'.sai-pop{width:300px;max-width:88vw;padding:14px}' +
+		'.sai-pop-head{display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;color:#1e1e1e;margin:0 0 10px}' +
+		'.sai-pop .sai-ta{min-height:68px}' +
+		'.sai-pop-err{color:#b32d2e;font-size:12px;line-height:1.4;margin:8px 0 0}' +
+		'.sai-pop-actions{margin-top:10px}' +
+		'.sai-quick-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}' +
+		'.sai-quick{padding:5px 11px;border-radius:999px;border:1px solid #d5d7db;background:#fff;color:#3c434a;font-size:11.5px;cursor:pointer;transition:all .12s}' +
+		'.sai-quick:hover:not(:disabled){border-color:#3d986a;color:#1c7c4a;background:#f4faf6}' +
+		'.sai-quick:disabled{opacity:.55;cursor:not-allowed}' +
 		// Design-image attach (sidebar generate).
-		'.abc-attach{margin-top:10px}' +
-		'.abc-attach-btn{display:inline-flex;align-items:center;gap:7px;width:100%;justify-content:center;border:1px dashed #cdd0d4;background:#fff;color:#3c434a;border-radius:8px;padding:10px 12px;font-size:12px;cursor:pointer;transition:all .12s}' +
-		'.abc-attach-btn:hover:not(:disabled){border-color:#3d986a;color:#1c7c4a;background:#f4faf6}' +
-		'.abc-attach-btn:disabled{opacity:.55;cursor:not-allowed}' +
-		'.abc-attach-hint{font-size:11px;color:#7a8085;line-height:1.5;margin:7px 0 0}' +
-		'.abc-thumb{position:relative;display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #e2e4e7;border-radius:8px;background:#fafbfb}' +
-		'.abc-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;flex:0 0 auto;background:#fff}' +
-		'.abc-thumb-meta{flex:1;min-width:0;font-size:11.5px;color:#50575e;line-height:1.4}' +
-		'.abc-thumb-name{font-weight:600;color:#1e1e1e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-		'.abc-thumb-x{flex:0 0 auto;width:26px;height:26px;border:1px solid #d5d7db;background:#fff;border-radius:6px;color:#7a8085;font-size:15px;line-height:1;cursor:pointer}' +
-		'.abc-thumb-x:hover{border-color:#b32d2e;color:#b32d2e}';
+		'.sai-attach{margin-top:10px}' +
+		'.sai-attach-btn{display:inline-flex;align-items:center;gap:7px;width:100%;justify-content:center;border:1px dashed #cdd0d4;background:#fff;color:#3c434a;border-radius:8px;padding:10px 12px;font-size:12px;cursor:pointer;transition:all .12s}' +
+		'.sai-attach-btn:hover:not(:disabled){border-color:#3d986a;color:#1c7c4a;background:#f4faf6}' +
+		'.sai-attach-btn:disabled{opacity:.55;cursor:not-allowed}' +
+		'.sai-attach-hint{font-size:11px;color:#7a8085;line-height:1.5;margin:7px 0 0}' +
+		'.sai-thumb{position:relative;display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #e2e4e7;border-radius:8px;background:#fafbfb}' +
+		'.sai-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;flex:0 0 auto;background:#fff}' +
+		'.sai-thumb-meta{flex:1;min-width:0;font-size:11.5px;color:#50575e;line-height:1.4}' +
+		'.sai-thumb-name{font-weight:600;color:#1e1e1e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+		'.sai-thumb-x{flex:0 0 auto;width:26px;height:26px;border:1px solid #d5d7db;background:#fff;border-radius:6px;color:#7a8085;font-size:15px;line-height:1;cursor:pointer}' +
+		'.sai-thumb-x:hover{border-color:#b32d2e;color:#b32d2e}';
 
 	// Inject styles once, globally — the toolbar popover renders even when the
 	// sidebar panel is closed, so styles cannot live only inside the panel.
 	function injectStyles() {
-		if ( typeof document === 'undefined' || document.getElementById( 'abc-inline-styles' ) ) {
+		if ( typeof document === 'undefined' || document.getElementById( 'sai-inline-styles' ) ) {
 			return;
 		}
 		var s = document.createElement( 'style' );
-		s.id = 'abc-inline-styles';
+		s.id = 'sai-inline-styles';
 		s.textContent = STYLE;
 		( document.head || document.documentElement ).appendChild( s );
 	}
@@ -224,13 +224,13 @@
 
 		function apply() {
 			if ( ! val.trim() ) {
-				setErr( __( 'Describe the change first.', 'ai-block-composer' ) );
+				setErr( __( 'Describe the change first.', 'styble-ai' ) );
 				return;
 			}
 			var be = wp.data.select( 'core/block-editor' );
 			var block = be.getBlock( props.clientId );
 			if ( ! block ) {
-				setErr( __( 'Could not read this block.', 'ai-block-composer' ) );
+				setErr( __( 'Could not read this block.', 'styble-ai' ) );
 				return;
 			}
 
@@ -239,19 +239,19 @@
 			setErr( null );
 
 			apiFetch( {
-				path: '/ai-block-composer/v1/generate',
+				path: '/styble-ai/v1/generate',
 				method: 'POST',
 				data: { prompt: val.trim(), selection: selectionMarkup }
 			} )
 				.then( function ( res ) {
 					setBusy( false );
 					if ( ! res || ! res.markup ) {
-						setErr( __( 'Empty response from server.', 'ai-block-composer' ) );
+						setErr( __( 'Empty response from server.', 'styble-ai' ) );
 						return;
 					}
 					var newBlocks = wp.blocks.parse( res.markup );
 					if ( ! newBlocks || ! newBlocks.length ) {
-						setErr( __( 'The edit returned nothing usable.', 'ai-block-composer' ) );
+						setErr( __( 'The edit returned nothing usable.', 'styble-ai' ) );
 						return;
 					}
 					wp.data.dispatch( 'core/block-editor' ).replaceBlocks( props.clientId, newBlocks );
@@ -261,44 +261,44 @@
 				} )
 				.catch( function ( e ) {
 					setBusy( false );
-					setErr( ( e && e.message ) ? e.message : __( 'Request failed.', 'ai-block-composer' ) );
+					setErr( ( e && e.message ) ? e.message : __( 'Request failed.', 'styble-ai' ) );
 				} );
 		}
 
-		return el( 'div', { className: 'abc-pop' },
-			el( 'p', { className: 'abc-pop-head' }, icon( 'wand', 15, '#1c8250' ), __( 'Edit this block with AI', 'ai-block-composer' ) ),
+		return el( 'div', { className: 'sai-pop' },
+			el( 'p', { className: 'sai-pop-head' }, icon( 'wand', 15, '#1c8250' ), __( 'Edit this block with AI', 'styble-ai' ) ),
 			el( 'textarea', {
-				className: 'abc-ta',
+				className: 'sai-ta',
 				rows: 3,
 				autoFocus: true,
 				maxLength: MAXLEN,
 				value: val,
 				disabled: busy,
-				placeholder: __( 'e.g. Make it punchier and add a short subheading.', 'ai-block-composer' ),
+				placeholder: __( 'e.g. Make it punchier and add a short subheading.', 'styble-ai' ),
 				onChange: function ( e ) { setVal( e.target.value ); }
 			} ),
-			el( 'div', { className: 'abc-quick-row' },
+			el( 'div', { className: 'sai-quick-row' },
 				EDIT_QUICK.map( function ( q, i ) {
 					return el( 'button', {
 						key: i,
 						type: 'button',
-						className: 'abc-quick',
+						className: 'sai-quick',
 						disabled: busy,
 						onClick: function () { setVal( q ); }
 					}, q );
 				} )
 			),
-			err ? el( 'p', { className: 'abc-pop-err' }, err ) : null,
-			el( 'div', { className: 'abc-pop-actions' },
+			err ? el( 'p', { className: 'sai-pop-err' }, err ) : null,
+			el( 'div', { className: 'sai-pop-actions' },
 				el( 'button', {
 					type: 'button',
-					className: 'abc-generate',
+					className: 'sai-generate',
 					style: { width: '100%' },
 					disabled: ! val.trim() || busy,
 					onClick: apply
 				}, busy
-					? el( Fragment, {}, el( C.Spinner, {} ), __( 'Applying…', 'ai-block-composer' ) )
-					: el( Fragment, {}, icon( 'wand', 16 ), __( 'Apply', 'ai-block-composer' ) )
+					? el( Fragment, {}, el( C.Spinner, {} ), __( 'Applying…', 'styble-ai' ) )
+					: el( Fragment, {}, icon( 'wand', 16 ), __( 'Apply', 'styble-ai' ) )
 				)
 			)
 		);
@@ -325,7 +325,7 @@
 								renderToggle: function ( o ) {
 									return el( C.ToolbarButton, {
 										icon: icon( 'wand', 24, '#1c8250' ),
-										label: __( 'Edit with AI', 'ai-block-composer' ),
+										label: __( 'Edit with AI', 'styble-ai' ),
 										isPressed: o.isOpen,
 										'aria-expanded': o.isOpen,
 										onClick: o.onToggle
@@ -341,7 +341,7 @@
 			};
 		}, 'withAIEdit' );
 
-		wp.hooks.addFilter( 'editor.BlockEdit', 'ai-block-composer/with-ai-edit', withAIEdit );
+		wp.hooks.addFilter( 'editor.BlockEdit', 'styble-ai/with-ai-edit', withAIEdit );
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -379,16 +379,16 @@
 		function acceptImage( file, fallbackName ) {
 			if ( ! file ) { return; }
 			if ( file.size > MAX_IMG_BYTES ) {
-				setNotice( { type: 'error', text: __( 'Image too large — max 8 MB.', 'ai-block-composer' ) } );
+				setNotice( { type: 'error', text: __( 'Image too large — max 8 MB.', 'styble-ai' ) } );
 				return;
 			}
 			loadDownscaled( file, function ( url ) {
 				if ( url ) {
 					setImage( url );
-					setImageName( file.name || fallbackName || __( 'Design image', 'ai-block-composer' ) );
+					setImageName( file.name || fallbackName || __( 'Design image', 'styble-ai' ) );
 					setNotice( null );
 				} else {
-					setNotice( { type: 'error', text: __( 'Could not read that image.', 'ai-block-composer' ) } );
+					setNotice( { type: 'error', text: __( 'Could not read that image.', 'styble-ai' ) } );
 				}
 			} );
 		}
@@ -407,7 +407,7 @@
 					var f = items[ i ].getAsFile();
 					if ( f ) {
 						e.preventDefault();
-						acceptImage( f, __( 'Pasted image', 'ai-block-composer' ) );
+						acceptImage( f, __( 'Pasted image', 'styble-ai' ) );
 					}
 					break;
 				}
@@ -422,16 +422,16 @@
 		function insertMarkup( markup ) {
 			var blocks = wp.blocks.parse( markup );
 			if ( ! blocks || ! blocks.length ) {
-				setNotice( { type: 'error', text: __( 'Nothing to insert.', 'ai-block-composer' ) } );
+				setNotice( { type: 'error', text: __( 'Nothing to insert.', 'styble-ai' ) } );
 				return;
 			}
 			wp.data.dispatch( 'core/block-editor' ).insertBlocks( blocks );
-			setNotice( { type: 'success', text: blocks.length + ' ' + __( 'section block(s) inserted.', 'ai-block-composer' ) } );
+			setNotice( { type: 'success', text: blocks.length + ' ' + __( 'section block(s) inserted.', 'styble-ai' ) } );
 		}
 
 		function onGenerate() {
 			if ( ! prompt.trim() ) {
-				setNotice( { type: 'error', text: __( 'Describe what to build first.', 'ai-block-composer' ) } );
+				setNotice( { type: 'error', text: __( 'Describe what to build first.', 'styble-ai' ) } );
 				return;
 			}
 			setBusy( true );
@@ -450,20 +450,20 @@
 			}
 			var hadImage = !! image;
 
-			apiFetch( { path: '/ai-block-composer/v1/generate', method: 'POST', data: data } )
+			apiFetch( { path: '/styble-ai/v1/generate', method: 'POST', data: data } )
 				.then( function ( res ) {
 					setBusy( false );
 					if ( res && res.markup ) {
 						insertMarkup( res.markup );
 					} else {
-						setNotice( { type: 'error', text: __( 'Empty response from server.', 'ai-block-composer' ) } );
+						setNotice( { type: 'error', text: __( 'Empty response from server.', 'styble-ai' ) } );
 					}
 				} )
 				.catch( function ( err ) {
 					setBusy( false );
-					var msg = ( err && err.message ) ? err.message : __( 'Request failed.', 'ai-block-composer' );
+					var msg = ( err && err.message ) ? err.message : __( 'Request failed.', 'styble-ai' );
 					if ( hadImage ) {
-						msg += ' ' + __( '— the selected model may not support images; switch to a vision model.', 'ai-block-composer' );
+						msg += ' ' + __( '— the selected model may not support images; switch to a vision model.', 'styble-ai' );
 					}
 					setNotice( { type: 'error', text: msg } );
 				} );
@@ -474,33 +474,33 @@
 		var children = [];
 
 		children.push(
-			el( 'h2', { key: 'title', className: 'abc-title' }, __( 'Compose with AI', 'ai-block-composer' ) )
+			el( 'h2', { key: 'title', className: 'sai-title' }, __( 'Compose with AI', 'styble-ai' ) )
 		);
 
 		children.push(
-			el( 'p', { key: 'help', className: 'abc-intro' },
-				__( 'Describe a section or a whole layout in plain words. We build it as native, fully-editable WordPress blocks.', 'ai-block-composer' )
+			el( 'p', { key: 'help', className: 'sai-intro' },
+				__( 'Describe a section or a whole layout in plain words. We build it as native, fully-editable WordPress blocks.', 'styble-ai' )
 			)
 		);
 
 		// Prompt label + live character counter.
 		children.push(
-			el( 'div', { key: 'lrow', className: 'abc-label-row' },
-				el( 'label', { className: 'abc-label', htmlFor: 'abc-prompt' }, __( 'Prompt', 'ai-block-composer' ) ),
-				el( 'span', { className: 'abc-count' }, prompt.length + '/' + MAXLEN )
+			el( 'div', { key: 'lrow', className: 'sai-label-row' },
+				el( 'label', { className: 'sai-label', htmlFor: 'sai-prompt' }, __( 'Prompt', 'styble-ai' ) ),
+				el( 'span', { className: 'sai-count' }, prompt.length + '/' + MAXLEN )
 			)
 		);
 
 		children.push(
 			el( 'textarea', {
 				key: 'ta',
-				id: 'abc-prompt',
-				className: 'abc-ta',
+				id: 'sai-prompt',
+				className: 'sai-ta',
 				value: prompt,
 				rows: 5,
 				maxLength: MAXLEN,
 				disabled: busy,
-				placeholder: __( 'e.g. A features section with 3 columns: fast, secure, affordable — each with a heading and a sentence.', 'ai-block-composer' ),
+				placeholder: __( 'e.g. A features section with 3 columns: fast, secure, affordable — each with a heading and a sentence.', 'styble-ai' ),
 				onChange: function ( e ) { setPrompt( e.target.value ); },
 				onPaste: onPastePrompt
 			} )
@@ -508,7 +508,7 @@
 
 		// Design-image attach: build the layout from a screenshot/mockup.
 		children.push(
-			el( 'div', { key: 'attach', className: 'abc-attach' },
+			el( 'div', { key: 'attach', className: 'sai-attach' },
 				el( 'input', {
 					ref: fileRef,
 					type: 'file',
@@ -517,43 +517,43 @@
 					onChange: onFilePick
 				} ),
 				image
-					? el( 'div', { className: 'abc-thumb' },
+					? el( 'div', { className: 'sai-thumb' },
 						el( 'img', { src: image, alt: '' } ),
-						el( 'div', { className: 'abc-thumb-meta' },
-							el( 'div', { className: 'abc-thumb-name' }, imageName ),
-							el( 'div', {}, __( 'AI will build from this image.', 'ai-block-composer' ) )
+						el( 'div', { className: 'sai-thumb-meta' },
+							el( 'div', { className: 'sai-thumb-name' }, imageName ),
+							el( 'div', {}, __( 'AI will build from this image.', 'styble-ai' ) )
 						),
 						el( 'button', {
 							type: 'button',
-							className: 'abc-thumb-x',
-							'aria-label': __( 'Remove image', 'ai-block-composer' ),
-							title: __( 'Remove image', 'ai-block-composer' ),
+							className: 'sai-thumb-x',
+							'aria-label': __( 'Remove image', 'styble-ai' ),
+							title: __( 'Remove image', 'styble-ai' ),
 							disabled: busy,
 							onClick: clearImage
 						}, '×' )
 					)
 					: el( 'button', {
 						type: 'button',
-						className: 'abc-attach-btn',
+						className: 'sai-attach-btn',
 						disabled: busy,
 						onClick: function () { if ( fileRef.current ) { fileRef.current.click(); } }
-					}, icon( 'image', 15 ), __( 'Add a design image', 'ai-block-composer' ) ),
-				el( 'p', { className: 'abc-attach-hint' },
-					__( 'Optional. Or paste an image into the prompt. Needs a vision model (Groq llama-4-scout, Gemini, Claude, GPT-4o).', 'ai-block-composer' )
+					}, icon( 'image', 15 ), __( 'Add a design image', 'styble-ai' ) ),
+				el( 'p', { className: 'sai-attach-hint' },
+					__( 'Optional. Or paste an image into the prompt. Needs a vision model (Groq llama-4-scout, Gemini, Claude, GPT-4o).', 'styble-ai' )
 				)
 			)
 		);
 
 		// Tone chips.
 		children.push(
-			el( 'div', { key: 'tone', className: 'abc-tone' },
-				el( 'div', { className: 'abc-tone-row' },
-					[ el( 'span', { key: 'tl', className: 'abc-tone-label' }, __( 'TONE', 'ai-block-composer' ) ) ].concat(
+			el( 'div', { key: 'tone', className: 'sai-tone' },
+				el( 'div', { className: 'sai-tone-row' },
+					[ el( 'span', { key: 'tl', className: 'sai-tone-label' }, __( 'TONE', 'styble-ai' ) ) ].concat(
 						TONES.map( function ( t ) {
 							return el( 'button', {
 								key: t.id,
 								type: 'button',
-								className: 'abc-chip',
+								className: 'sai-chip',
 								'aria-pressed': tone === t.id,
 								disabled: busy,
 								onClick: function () { setTone( t.id ); }
@@ -565,28 +565,28 @@
 		);
 
 		children.push(
-			el( 'div', { key: 'actions', className: 'abc-actions', style: { marginTop: '16px' } },
+			el( 'div', { key: 'actions', className: 'sai-actions', style: { marginTop: '16px' } },
 				el( 'button', {
 					type: 'button',
-					className: 'abc-generate',
+					className: 'sai-generate',
 					disabled: ! canGenerate,
 					onClick: onGenerate
 				}, busy
-					? el( Fragment, {}, el( C.Spinner, {} ), __( 'Generating…', 'ai-block-composer' ) )
-					: el( Fragment, {}, icon( 'wand', 16 ), __( 'Generate & insert', 'ai-block-composer' ) )
+					? el( Fragment, {}, el( C.Spinner, {} ), __( 'Generating…', 'styble-ai' ) )
+					: el( Fragment, {}, icon( 'wand', 16 ), __( 'Generate & insert', 'styble-ai' ) )
 				),
 				el( 'button', {
 					type: 'button',
-					className: 'abc-clear',
+					className: 'sai-clear',
 					disabled: ( ! hasText && ! image ) || busy,
 					onClick: function () { setPrompt( '' ); setNotice( null ); clearImage(); }
-				}, __( 'Clear', 'ai-block-composer' ) )
+				}, __( 'Clear', 'styble-ai' ) )
 			)
 		);
 
 		if ( notice ) {
 			children.push(
-				el( 'div', { key: 'notice', className: 'abc-notice' },
+				el( 'div', { key: 'notice', className: 'sai-notice' },
 					el( C.Notice, {
 						status: notice.type,
 						isDismissible: true,
@@ -598,73 +598,73 @@
 
 		// Hint that per-block editing lives in the block toolbar now.
 		children.push(
-			el( 'div', { key: 'edit', className: 'abc-try' },
-				el( 'p', { className: 'abc-try-head' },
+			el( 'div', { key: 'edit', className: 'sai-try' },
+				el( 'p', { className: 'sai-try-head' },
 					icon( 'edit', 14 ),
-					__( 'Edit existing blocks', 'ai-block-composer' )
+					__( 'Edit existing blocks', 'styble-ai' )
 				),
-				el( 'p', { className: 'abc-intro', style: { margin: 0 } },
-					__( 'Select any block in the editor and click the ✦ "Edit with AI" button in its toolbar to rewrite it in place.', 'ai-block-composer' )
+				el( 'p', { className: 'sai-intro', style: { margin: 0 } },
+					__( 'Select any block in the editor and click the ✦ "Edit with AI" button in its toolbar to rewrite it in place.', 'styble-ai' )
 				)
 			)
 		);
 
 		// Example cards.
 		children.push(
-			el( 'div', { key: 'try', className: 'abc-try' },
-				el( 'p', { className: 'abc-try-head' },
-					el( 'span', { className: 'abc-star' }, icon( 'star', 14 ) ),
-					__( 'Try one of these', 'ai-block-composer' )
+			el( 'div', { key: 'try', className: 'sai-try' },
+				el( 'p', { className: 'sai-try-head' },
+					el( 'span', { className: 'sai-star' }, icon( 'star', 14 ) ),
+					__( 'Try one of these', 'styble-ai' )
 				),
 				EXAMPLES.map( function ( x, i ) {
 					return el( 'button', {
 						key: i,
 						type: 'button',
-						className: 'abc-card',
+						className: 'sai-card',
 						disabled: busy,
 						onClick: function () { setPrompt( x.text ); }
 					},
-						el( 'span', { className: 'abc-card-ico' }, icon( x.icon, 18 ) ),
-						el( 'span', { className: 'abc-card-body' },
-							el( 'span', { className: 'abc-card-title' }, x.title ),
-							el( 'span', { className: 'abc-card-text' }, x.text )
+						el( 'span', { className: 'sai-card-ico' }, icon( x.icon, 18 ) ),
+						el( 'span', { className: 'sai-card-body' },
+							el( 'span', { className: 'sai-card-title' }, x.title ),
+							el( 'span', { className: 'sai-card-text' }, x.text )
 						),
-						el( 'span', { className: 'abc-card-arrow' }, icon( 'arrow', 15 ) )
+						el( 'span', { className: 'sai-card-arrow' }, icon( 'arrow', 15 ) )
 					);
 				} )
 			)
 		);
 
 		children.push(
-			el( 'div', { key: 'foot', className: 'abc-foot' },
+			el( 'div', { key: 'foot', className: 'sai-foot' },
 				icon( 'shield', 15 ),
-				el( 'span', {}, __( 'Nothing publishes automatically — you review every block.', 'ai-block-composer' ) )
+				el( 'span', {}, __( 'Nothing publishes automatically — you review every block.', 'styble-ai' ) )
 			)
 		);
 
-		return el( 'div', { className: 'abc-body' }, children );
+		return el( 'div', { className: 'sai-body' }, children );
 	}
 
 	// Branded header shown at the top of the sidebar content.
 	function Brand() {
-		return el( 'div', { className: 'abc-brand' },
-			el( 'div', { className: 'abc-brand-ico' }, icon( 'wand', 20 ) ),
+		return el( 'div', { className: 'sai-brand' },
+			el( 'div', { className: 'sai-brand-ico' }, icon( 'wand', 20 ) ),
 			el( 'div', {},
-				el( 'div', { className: 'abc-brand-title' }, __( 'AI Block Composer', 'ai-block-composer' ) ),
-				el( 'div', { className: 'abc-brand-sub' }, __( 'Beta · outputs native blocks', 'ai-block-composer' ) )
+				el( 'div', { className: 'sai-brand-title' }, __( 'Styble AI', 'styble-ai' ) ),
+				el( 'div', { className: 'sai-brand-sub' }, __( 'Beta · outputs native blocks', 'styble-ai' ) )
 			)
 		);
 	}
 
 	function Sidebar() {
 		return el( Fragment, {},
-			el( PluginSidebarMoreMenuItem, { target: 'ai-block-composer-sidebar', icon: icon( 'wand', 20, '#1c8250' ) },
-				__( 'AI Block Composer', 'ai-block-composer' )
+			el( PluginSidebarMoreMenuItem, { target: 'styble-ai-sidebar', icon: icon( 'wand', 20, '#1c8250' ) },
+				__( 'Styble AI', 'styble-ai' )
 			),
 			el( PluginSidebar, {
-				name: 'ai-block-composer-sidebar',
-				title: __( 'AI Block Composer', 'ai-block-composer' ),
-				className: 'abc-sidebar',
+				name: 'styble-ai-sidebar',
+				title: __( 'Styble AI', 'styble-ai' ),
+				className: 'sai-sidebar',
 				icon: icon( 'wand', 20, '#1c8250' )
 			}, el( Brand, {} ), el( Panel, {} ) )
 		);
@@ -674,6 +674,6 @@
 	registerBlockToolbar();
 
 	if ( PluginSidebar ) {
-		registerPlugin( 'ai-block-composer', { render: Sidebar } );
+		registerPlugin( 'styble-ai', { render: Sidebar } );
 	}
 } )( window.wp );

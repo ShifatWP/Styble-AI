@@ -11,14 +11,14 @@
  *   generate($prompt, $context)              -> IR for new sections.
  *   edit($prompt, $context, $selection)      -> revised IR for selected blocks.
  *
- * @package AI_Block_Composer
+ * @package Styble_AI
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class ABC_Anthropic_Provider {
+class Styble_AI_Anthropic_Provider {
 
 	const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 	const VERSION  = '2023-06-01';
@@ -35,7 +35,7 @@ class ABC_Anthropic_Provider {
 	 * Generate brand-new sections from a description.
 	 *
 	 * @param string $prompt  User's description of the section(s) to build.
-	 * @param string $context Theme summary from ABC_Theme_Context.
+	 * @param string $context Theme summary from Styble_AI_Theme_Context.
 	 * @param string $image   Optional data:image/*;base64 URL of a design reference.
 	 * @return array|WP_Error Decoded IR ( ['sections' => [...]] ) or error.
 	 */
@@ -133,7 +133,7 @@ class ABC_Anthropic_Provider {
 	 */
 	private function send( array $body ) {
 		if ( empty( $this->api_key ) ) {
-			return new WP_Error( 'abc_no_key', 'No API key configured. Add one under Settings → AI Block Composer.' );
+			return new WP_Error( 'styble_ai_no_key', 'No API key configured. Add one under Settings → Styble AI.' );
 		}
 
 		$response = wp_remote_post(
@@ -159,7 +159,7 @@ class ABC_Anthropic_Provider {
 
 		if ( $code < 200 || $code >= 300 ) {
 			$msg = isset( $data['error']['message'] ) ? $data['error']['message'] : 'HTTP ' . $code;
-			return new WP_Error( 'abc_api_error', 'AI request failed: ' . $msg );
+			return new WP_Error( 'styble_ai_api_error', 'AI request failed: ' . $msg );
 		}
 
 		// Find the tool_use content block and read its input (our IR).
@@ -171,7 +171,7 @@ class ABC_Anthropic_Provider {
 			}
 		}
 
-		return new WP_Error( 'abc_no_tool_use', 'The model did not return structured layout data.' );
+		return new WP_Error( 'styble_ai_no_tool_use', 'The model did not return structured layout data.' );
 	}
 
 	/**

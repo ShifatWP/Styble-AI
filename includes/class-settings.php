@@ -1,18 +1,18 @@
 <?php
 /**
- * Settings page (Settings -> AI Block Composer).
+ * Settings page (Settings -> Styble AI).
  * Experimental: the API key is stored in wp_options in plaintext. Fine for a
  * local/dev experiment; for production move to the proxy/credits model instead
  * of storing user keys.
  *
- * @package AI_Block_Composer
+ * @package Styble_AI
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class ABC_Settings {
+class Styble_AI_Settings {
 
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
@@ -21,18 +21,18 @@ class ABC_Settings {
 
 	public function menu() {
 		add_options_page(
-			'AI Block Composer',
-			'AI Block Composer',
+			'Styble AI',
+			'Styble AI',
 			'manage_options',
-			'ai-block-composer',
+			'styble-ai',
 			array( $this, 'render' )
 		);
 	}
 
 	public function fields() {
 		register_setting(
-			'abc_settings',
-			'abc_provider',
+			'styble_ai_settings',
+			'styble_ai_provider',
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => 'sanitize_text_field',
@@ -40,8 +40,8 @@ class ABC_Settings {
 			)
 		);
 		register_setting(
-			'abc_settings',
-			'abc_api_key',
+			'styble_ai_settings',
+			'styble_ai_api_key',
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => 'sanitize_text_field',
@@ -49,8 +49,8 @@ class ABC_Settings {
 			)
 		);
 		register_setting(
-			'abc_settings',
-			'abc_model',
+			'styble_ai_settings',
+			'styble_ai_model',
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => 'sanitize_text_field',
@@ -58,8 +58,8 @@ class ABC_Settings {
 			)
 		);
 		register_setting(
-			'abc_settings',
-			'abc_base_url',
+			'styble_ai_settings',
+			'styble_ai_base_url',
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => 'esc_url_raw',
@@ -72,13 +72,13 @@ class ABC_Settings {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$provider = get_option( 'abc_provider', 'anthropic' );
-		$key      = get_option( 'abc_api_key', '' );
-		$model    = get_option( 'abc_model', '' );
-		$base_url = get_option( 'abc_base_url', '' );
+		$provider = get_option( 'styble_ai_provider', 'anthropic' );
+		$key      = get_option( 'styble_ai_api_key', '' );
+		$model    = get_option( 'styble_ai_model', '' );
+		$base_url = get_option( 'styble_ai_base_url', '' );
 
 		// Provider dropdown: Anthropic (native) + every OpenAI-compatible preset.
-		$presets   = ABC_OpenAI_Compatible_Provider::presets();
+		$presets   = Styble_AI_OpenAI_Compatible_Provider::presets();
 		$providers = array( 'anthropic' => array( 'label' => 'Anthropic — Claude (native)', 'model' => 'claude-sonnet-5', 'signup' => 'https://console.anthropic.com/settings/keys' ) );
 		foreach ( $presets as $id => $p ) {
 			$providers[ $id ] = $p;
@@ -86,15 +86,15 @@ class ABC_Settings {
 		// Default-model hints, exposed to the model text field's placeholder via data-*.
 		?>
 		<div class="wrap">
-			<h1>AI Block Composer</h1>
+			<h1>Styble AI</h1>
 			<p>Experimental build. Pick a provider, paste that provider's API key, and generate WordPress core-block sections from a prompt inside the editor. Out of Anthropic credits? <strong>Groq</strong> and <strong>Cerebras</strong> run Llama 3.3 70B free and support the function-calling this plugin needs.</p>
 			<form method="post" action="options.php">
-				<?php settings_fields( 'abc_settings' ); ?>
+				<?php settings_fields( 'styble_ai_settings' ); ?>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><label for="abc_provider">Provider</label></th>
+						<th scope="row"><label for="styble_ai_provider">Provider</label></th>
 						<td>
-							<select name="abc_provider" id="abc_provider">
+							<select name="styble_ai_provider" id="styble_ai_provider">
 								<?php foreach ( $providers as $id => $p ) : ?>
 									<option value="<?php echo esc_attr( $id ); ?>"
 										data-model="<?php echo esc_attr( $p['model'] ); ?>"
@@ -108,26 +108,26 @@ class ABC_Settings {
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="abc_api_key">API key</label></th>
+						<th scope="row"><label for="styble_ai_api_key">API key</label></th>
 						<td>
-							<input name="abc_api_key" id="abc_api_key" type="password" autocomplete="off"
+							<input name="styble_ai_api_key" id="styble_ai_api_key" type="password" autocomplete="off"
 								value="<?php echo esc_attr( $key ); ?>" class="regular-text" placeholder="paste key" />
-							<p class="description">Stored in your database (plaintext — fine for local/dev). <a id="abc_signup" href="<?php echo esc_url( $providers[ $provider ]['signup'] ); ?>" target="_blank" rel="noopener">Get a key for the selected provider &rarr;</a></p>
+							<p class="description">Stored in your database (plaintext — fine for local/dev). <a id="styble_ai_signup" href="<?php echo esc_url( $providers[ $provider ]['signup'] ); ?>" target="_blank" rel="noopener">Get a key for the selected provider &rarr;</a></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="abc_model">Model</label></th>
+						<th scope="row"><label for="styble_ai_model">Model</label></th>
 						<td>
-							<input name="abc_model" id="abc_model" type="text"
+							<input name="styble_ai_model" id="styble_ai_model" type="text"
 								value="<?php echo esc_attr( $model ); ?>" class="regular-text"
 								placeholder="<?php echo esc_attr( $providers[ $provider ]['model'] ); ?>" />
 							<p class="description">Leave blank to use the provider's default (shown as the placeholder). Examples: <code>llama-3.3-70b-versatile</code> (Groq), <code>llama-3.3-70b</code> (Cerebras), <code>deepseek-chat</code>, <code>claude-sonnet-5</code>.<br /><strong>Image uploads need a vision model:</strong> <code>meta-llama/llama-4-scout-17b-16e-instruct</code> (Groq, free), <code>gemini-2.0-flash</code> (Gemini, free), <code>claude-sonnet-5</code>, or <code>gpt-4o</code>. Text-only models (e.g. <code>llama-3.3-70b-versatile</code>) reject images.</p>
 						</td>
 					</tr>
-					<tr id="abc_base_url_row">
-						<th scope="row"><label for="abc_base_url">Custom base URL</label></th>
+					<tr id="styble_ai_base_url_row">
+						<th scope="row"><label for="styble_ai_base_url">Custom base URL</label></th>
 						<td>
-							<input name="abc_base_url" id="abc_base_url" type="url"
+							<input name="styble_ai_base_url" id="styble_ai_base_url" type="url"
 								value="<?php echo esc_attr( $base_url ); ?>" class="regular-text"
 								placeholder="https://host/v1/chat/completions" />
 							<p class="description">Only used when Provider = Custom. Full chat/completions endpoint URL.</p>
@@ -138,10 +138,10 @@ class ABC_Settings {
 			</form>
 			<script>
 			( function () {
-				var sel  = document.getElementById( 'abc_provider' );
-				var model = document.getElementById( 'abc_model' );
-				var signup = document.getElementById( 'abc_signup' );
-				var row  = document.getElementById( 'abc_base_url_row' );
+				var sel  = document.getElementById( 'styble_ai_provider' );
+				var model = document.getElementById( 'styble_ai_model' );
+				var signup = document.getElementById( 'styble_ai_signup' );
+				var row  = document.getElementById( 'styble_ai_base_url_row' );
 				function sync() {
 					var opt = sel.options[ sel.selectedIndex ];
 					model.placeholder = opt.getAttribute( 'data-model' ) || '';
@@ -157,7 +157,7 @@ class ABC_Settings {
 			<ol>
 				<li>Pick a provider, paste that provider's key, save.</li>
 				<li>Edit any page or post.</li>
-				<li>Open the <strong>AI Block Composer</strong> panel from the top-right plugin menu (star icon).</li>
+				<li>Open the <strong>Styble AI</strong> panel from the top-right plugin menu (star icon).</li>
 				<li>Describe a section (e.g. “a hero for a coffee roaster with a headline, one line of copy, and two buttons”) and click <strong>Generate</strong>.</li>
 			</ol>
 		</div>
