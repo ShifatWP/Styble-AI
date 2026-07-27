@@ -5,15 +5,20 @@ License: GPLv2 or later
 
 Generate Styble block sections from AI prompts, inside the editor.
 
-== Migration in progress ==
-Styble AI is forked from AI Block Composer, which generates WordPress CORE
-blocks. The fork is being retargeted at Styble blocks — see
-docs/STYBLE_BLOCKS_MIGRATION_PLAN.md. Until the catalog, validator and Styble
-applier land, everything below still describes core-block output.
+Requires Styble Pro — the generated sections are Styble blocks.
+
+== How it works ==
+The model never writes block markup. It calls one tool, emit_layout, and returns
+a JSON tree of sparse attributes naming real Styble blocks. That tree is checked
+against a catalog generated from Styble Pro itself; if it fails, the model gets
+its own errors back and one more attempt, and a second failure is reported
+rather than patched. Only a tree that validated is applied, and the editor
+builds it with createBlock() so every block fills its own defaults and mints its
+own uniqueId. See docs/CONTRACT.md.
 
 == What this experimental build does ==
 * Adds a "Styble AI" sidebar to the block editor.
-* You describe a section or layout; it is inserted as fully editable CORE blocks.
+* You describe a section or layout; it is inserted as fully editable Styble blocks.
 * Edit any existing block in place — select it, click "Edit with AI" in its
   toolbar, describe the change.
 * Attach a design image (upload or paste) and the AI builds a matching layout —
@@ -79,7 +84,7 @@ Step 4 — Generate
   3. Describe a section (e.g. "a hero for a coffee roaster: headline, one line of
      copy, two buttons, dark tone, full width"), pick a Tone, click
      "Generate & insert". Or click one of the "Try one of these" example cards.
-  4. Blocks are inserted as native, fully editable core blocks. Nothing publishes
+  4. Blocks are inserted as real, fully editable Styble blocks. Nothing publishes
      automatically — you review every block.
 
 Step 5 — Test prompt (full small page)

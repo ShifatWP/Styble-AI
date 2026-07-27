@@ -2,8 +2,13 @@
 /**
  * REST endpoint: POST /wp-json/styble-ai/v1/generate
  *
- * Flow: prompt -> theme context -> provider (structured JSON) -> serializer
- * -> validate markup -> return markup to the editor for insertion.
+ * Flow: prompt -> catalog-generated prompt + tool schema -> provider (forced
+ * tool call) -> validator -> one corrective retry -> validated emit_layout tree.
+ *
+ * The route returns a TREE, not markup. Serialization is the editor's job now:
+ * every Styble block is dynamic, so the applier builds real blocks with
+ * createBlock() and each block fills its own defaults and mints its own
+ * uniqueId. Nothing here writes block HTML.
  *
  * @package Styble_AI
  */
@@ -79,43 +84,53 @@ class Styble_AI_REST_Controller {
 			}
 		}
 
-		$provider = $this->make_provider();
-		$context  = ( new Styble_AI_Theme_Context() )->summary();
-
-		// A selection means editing existing blocks (text-only). Otherwise generate
-		// new sections, optionally from a design image.
-		$ir = ( '' !== $selection )
-			? $provider->edit( $prompt, $context, $selection )
-			: $provider->generate( $prompt, $context, $image );
-		if ( is_wp_error( $ir ) ) {
-			return new WP_Error( $ir->get_error_code(), $ir->get_error_message(), array( 'status' => 502 ) );
+		try {
+			$catalog = Styble_AI_Catalog::from_file();
+		} catch ( RuntimeException $e ) {
+			// A missing catalog is a broken install, not a bad prompt. Say which.
+			return new WP_Error(
+				'styble_ai_no_catalog',
+				'Styble AI cannot read its block catalog. ' . $e->getMessage(),
+				array( 'status' => 500 )
+			);
 		}
 
-		$markup = ( new Styble_AI_Serializer() )->serialize( $ir );
+		$generator = new Styble_AI_Generator( $catalog, $this->make_provider() );
 
-		// Validation pass: re-parse and confirm we produced real blocks and no
-		// classic-editor fallback (core/freeform), which signals invalid markup.
-		$parsed  = parse_blocks( $markup );
-		$has_real = false;
-		foreach ( $parsed as $b ) {
-			if ( ! empty( $b['blockName'] ) ) {
-				$has_real = true;
-			}
-			if ( 'core/freeform' === $b['blockName'] ) {
-				return new WP_Error( 'styble_ai_invalid_markup', 'Generated markup did not validate. Please try again.', array( 'status' => 500 ) );
-			}
-		}
+		$result = ( '' !== $selection )
+			? $generator->edit( $prompt, $selection )
+			: $generator->generate( $prompt, $image );
 
-		if ( ! $has_real ) {
-			return new WP_Error( 'styble_ai_empty_result', 'The model returned no usable blocks. Try a more specific prompt.', array( 'status' => 500 ) );
+		if ( is_wp_error( $result ) ) {
+			return $this->as_response_error( $result );
 		}
 
 		return rest_ensure_response(
 			array(
-				'markup' => $markup,
-				'ir'     => $ir, // handy while experimenting; drop in production.
+				'tree'            => $result['tree'],
+				'attempts'        => $result['attempts'],
+				'contractVersion' => $catalog->contract_version(),
 			)
 		);
+	}
+
+	/**
+	 * Give every failure an HTTP status, and carry the validator's per-error
+	 * list through to the editor so it can list the reasons instead of showing a
+	 * blank failure.
+	 *
+	 * @param WP_Error $error Error from the pipeline.
+	 *
+	 * @return WP_Error
+	 */
+	private function as_response_error( WP_Error $error ) {
+		$data   = $error->get_error_data();
+		$data   = is_array( $data ) ? $data : array();
+		$status = isset( $data['status'] ) ? (int) $data['status'] : 502;
+
+		$data['status'] = $status;
+
+		return new WP_Error( $error->get_error_code(), $error->get_error_message(), $data );
 	}
 
 	/**
@@ -134,7 +149,8 @@ class Styble_AI_REST_Controller {
 	/**
 	 * Build the configured provider. "anthropic" uses the native Messages API;
 	 * every other id is an OpenAI-compatible chat/completions endpoint (Groq,
-	 * Cerebras, OpenRouter, DeepSeek, Mistral, Together, or a custom base URL).
+	 * Cerebras, OpenRouter, DeepSeek, Mistral, Together, Gemini, or a custom
+	 * base URL).
 	 */
 	private function make_provider() {
 		$provider = get_option( 'styble_ai_provider', 'anthropic' );
@@ -142,7 +158,7 @@ class Styble_AI_REST_Controller {
 		$model    = get_option( 'styble_ai_model', '' );
 
 		if ( 'anthropic' === $provider ) {
-			return new Styble_AI_Anthropic_Provider( $api_key, $model ? $model : 'claude-sonnet-5' );
+			return new Styble_AI_Anthropic_Provider( $api_key, $model ? $model : 'claude-opus-5' );
 		}
 
 		$presets  = Styble_AI_OpenAI_Compatible_Provider::presets();

@@ -35,6 +35,45 @@
 	var MAX_IMG_BYTES = 8 * 1024 * 1024; // 8 MB, matches the server cap.
 	var MAX_IMG_DIM = 1024;              // Downscale longest side to this.
 
+	// The route returns a validated emit_layout tree, not markup — every Styble
+	// block is dynamic, so the applier builds real blocks with createBlock() and
+	// each block fills its own defaults and mints its own uniqueId.
+	// Throws with a readable message; callers turn that into a notice.
+	function buildBlocksFrom( res ) {
+		if ( ! res || ! res.tree ) {
+			throw new Error( __( 'Empty response from server.', 'styble-ai' ) );
+		}
+		if ( ! window.stybleAI || ! window.stybleAI.buildBlocks ) {
+			throw new Error( __( 'The Styble AI applier did not load. Try reloading the editor.', 'styble-ai' ) );
+		}
+		var blocks = window.stybleAI.buildBlocks( res.tree );
+		if ( ! blocks || ! blocks.length ) {
+			throw new Error( __( 'The layout contained no blocks.', 'styble-ai' ) );
+		}
+		return blocks;
+	}
+
+	// Never fail silently: when the tree was rejected, the server sends the
+	// validator's per-error path + message, and those are the only thing that
+	// makes a bad prompt or a too-narrow allowlist diagnosable.
+	function errorText( err ) {
+		if ( ! err ) {
+			return __( 'Request failed.', 'styble-ai' );
+		}
+		var msg = err.message || __( 'Request failed.', 'styble-ai' );
+		var errors = ( err.data && err.data.errors ) || err.errors;
+		if ( errors && errors.length ) {
+			var shown = errors.slice( 0, 5 ).map( function ( e ) {
+				return '• ' + e.path + ' — ' + e.message;
+			} );
+			if ( errors.length > shown.length ) {
+				shown.push( '• ' + ( errors.length - shown.length ) + ' ' + __( 'more…', 'styble-ai' ) );
+			}
+			msg += '\n' + shown.join( '\n' );
+		}
+		return msg;
+	}
+
 	// Read an image file, downscale to <= MAX_IMG_DIM, hand back a JPEG data URL.
 	// cb(null) on any failure. Keeps payload/token cost low before upload.
 	function loadDownscaled( file, cb ) {
@@ -245,13 +284,11 @@
 			} )
 				.then( function ( res ) {
 					setBusy( false );
-					if ( ! res || ! res.markup ) {
-						setErr( __( 'Empty response from server.', 'styble-ai' ) );
-						return;
-					}
-					var newBlocks = wp.blocks.parse( res.markup );
-					if ( ! newBlocks || ! newBlocks.length ) {
-						setErr( __( 'The edit returned nothing usable.', 'styble-ai' ) );
+					var newBlocks;
+					try {
+						newBlocks = buildBlocksFrom( res );
+					} catch ( e ) {
+						setErr( e.message );
 						return;
 					}
 					wp.data.dispatch( 'core/block-editor' ).replaceBlocks( props.clientId, newBlocks );
@@ -261,7 +298,7 @@
 				} )
 				.catch( function ( e ) {
 					setBusy( false );
-					setErr( ( e && e.message ) ? e.message : __( 'Request failed.', 'styble-ai' ) );
+					setErr( errorText( e ) );
 				} );
 		}
 
@@ -419,14 +456,15 @@
 			setImageName( '' );
 		}
 
-		function insertMarkup( markup ) {
-			var blocks = wp.blocks.parse( markup );
-			if ( ! blocks || ! blocks.length ) {
-				setNotice( { type: 'error', text: __( 'Nothing to insert.', 'styble-ai' ) } );
-				return;
-			}
+		function insertTree( res ) {
+			var blocks = buildBlocksFrom( res );
 			wp.data.dispatch( 'core/block-editor' ).insertBlocks( blocks );
-			setNotice( { type: 'success', text: blocks.length + ' ' + __( 'section block(s) inserted.', 'styble-ai' ) } );
+			setNotice( {
+				type: 'success',
+				text: ( res.attempts > 1 )
+					? __( 'Section inserted (the first attempt was rejected and regenerated).', 'styble-ai' )
+					: __( 'Section inserted.', 'styble-ai' )
+			} );
 		}
 
 		function onGenerate() {
@@ -453,15 +491,15 @@
 			apiFetch( { path: '/styble-ai/v1/generate', method: 'POST', data: data } )
 				.then( function ( res ) {
 					setBusy( false );
-					if ( res && res.markup ) {
-						insertMarkup( res.markup );
-					} else {
-						setNotice( { type: 'error', text: __( 'Empty response from server.', 'styble-ai' ) } );
+					try {
+						insertTree( res );
+					} catch ( e ) {
+						setNotice( { type: 'error', text: e.message } );
 					}
 				} )
 				.catch( function ( err ) {
 					setBusy( false );
-					var msg = ( err && err.message ) ? err.message : __( 'Request failed.', 'styble-ai' );
+					var msg = errorText( err );
 					if ( hadImage ) {
 						msg += ' ' + __( '— the selected model may not support images; switch to a vision model.', 'styble-ai' );
 					}
@@ -651,7 +689,7 @@
 			el( 'div', { className: 'sai-brand-ico' }, icon( 'wand', 20 ) ),
 			el( 'div', {},
 				el( 'div', { className: 'sai-brand-title' }, __( 'Styble AI', 'styble-ai' ) ),
-				el( 'div', { className: 'sai-brand-sub' }, __( 'Beta · outputs native blocks', 'styble-ai' ) )
+				el( 'div', { className: 'sai-brand-sub' }, __( 'Beta · outputs Styble blocks', 'styble-ai' ) )
 			)
 		);
 	}

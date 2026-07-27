@@ -7,20 +7,25 @@
  * Together, or a self-hosted endpoint. Lets you run the experiment on a free
  * (or near-free) key instead of Anthropic.
  *
- * Same contract as Styble_AI_Anthropic_Provider:
- *   generate($prompt, $context)             -> IR for new sections.
- *   edit($prompt, $context, $selection)     -> revised IR for selected blocks.
- * Structured output is forced the same way — a single "function" whose
- * parameters ARE our IR schema, with tool_choice pinned to it. The serializer
- * still owns correctness; this layer only fills the schema.
+ * Same contract as Styble_AI_Anthropic_Provider — both take the identical spec
+ * and return the tool input:
+ *
+ *   complete( array $spec ) -> array | WP_Error
+ *
+ * Structured output is forced the same way: a single "function" whose
+ * parameters are the emit_layout schema, with tool_choice pinned to it. The
+ * provider owns transport only; the system prompt and schema arrive in the spec,
+ * generated from the catalog, and Styble_AI_Validator owns correctness.
  *
  * Key differences from the Anthropic layer:
  * - Auth header is `Authorization: Bearer <key>`.
  * - Tools are `{type:"function", function:{name,description,parameters}}`.
- * - Forced call is `tool_choice:{type:"function",function:{name:"build_layout"}}`.
+ * - Forced call is `tool_choice:{type:"function",function:{name:…}}`.
  * - The system prompt is a message with role "system".
+ * - Images are `image_url` parts rather than base64 `image` blocks.
  * - The result lives in choices[0].message.tool_calls[0].function.arguments,
  *   which is a JSON *string* we must decode (some providers hand back an object).
+ * - `temperature` is still accepted here; on current Claude models it 400s.
  *
  * @package Styble_AI
  */
@@ -30,6 +35,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Styble_AI_OpenAI_Compatible_Provider {
+
+	/**
+	 * Default output budget. A full section tree does not fit in the 4096 the
+	 * earlier core-block pipeline used.
+	 */
+	const MAX_TOKENS = 16000;
 
 	private $api_key;
 	private $model;
@@ -105,63 +116,22 @@ class Styble_AI_OpenAI_Compatible_Provider {
 	}
 
 	/**
-	 * Generate brand-new sections from a description.
+	 * Run one forced-tool turn.
 	 *
-	 * @param string $prompt  User's description of the section(s) to build.
-	 * @param string $context Theme summary from Styble_AI_Theme_Context.
-	 * @param string $image   Optional data:image/*;base64 URL of a design reference.
-	 * @return array|WP_Error Decoded IR ( ['sections' => [...]] ) or error.
-	 */
-	public function generate( $prompt, $context, $image = '' ) {
-		// With an image, send multimodal content (needs a vision-capable model).
-		$user = $prompt;
-		if ( $image ) {
-			$user = array(
-				array(
-					'type' => 'text',
-					'text' => $prompt,
-				),
-				array(
-					'type'      => 'image_url',
-					'image_url' => array( 'url' => $image ),
-				),
-			);
-		}
-
-		return $this->send(
-			$this->system_prompt( $context ),
-			$user,
-			$this->tool_definition( false ),
-			0.7
-		);
-	}
-
-	/**
-	 * Revise the currently selected block(s) per an edit instruction.
+	 * Takes the identical spec as Styble_AI_Anthropic_Provider::complete() and
+	 * maps it onto the chat/completions shape.
 	 *
-	 * @param string $prompt    The edit instruction.
-	 * @param string $context   Theme summary.
-	 * @param string $selection Block markup of the current selection (context).
-	 * @return array|WP_Error Decoded IR ( ['blocks'=>[...]] or ['sections'=>[...]] ).
+	 * @param array $spec {
+	 *     @type string $system      System prompt.
+	 *     @type array  $tool        name, description, input_schema.
+	 *     @type array  $messages    List of [ role, text, image ] (image optional data URL).
+	 *     @type int    $max_tokens  Optional output budget.
+	 *     @type float  $temperature Optional sampling temperature.
+	 * }
+	 *
+	 * @return array|WP_Error Tool arguments, or an error.
 	 */
-	public function edit( $prompt, $context, $selection ) {
-		$user = "The user has selected these existing block(s):\n\n"
-			. "```\n" . $selection . "\n```\n\n"
-			. 'Apply this edit and return the full revised replacement for that selection: ' . $prompt;
-
-		return $this->send(
-			$this->edit_system_prompt( $context ),
-			$user,
-			$this->tool_definition( true ),
-			0.5
-		);
-	}
-
-	/**
-	 * POST the chat/completions request and pull the forced function-call
-	 * arguments (our IR).
-	 */
-	private function send( $system, $user, $tool, $temperature ) {
+	public function complete( array $spec ) {
 		if ( empty( $this->api_key ) ) {
 			return new WP_Error( 'styble_ai_no_key', 'No API key configured. Add one under Settings → Styble AI.' );
 		}
@@ -172,27 +142,98 @@ class Styble_AI_OpenAI_Compatible_Provider {
 			return new WP_Error( 'styble_ai_no_model', 'No model configured. Set a model id under Settings → Styble AI.' );
 		}
 
+		$tool = isset( $spec['tool'] ) ? $spec['tool'] : array();
+		if ( empty( $tool['name'] ) || empty( $tool['input_schema'] ) ) {
+			return new WP_Error( 'styble_ai_bad_spec', 'Internal error: the request had no tool definition.' );
+		}
+
+		$messages = array(
+			array(
+				'role'    => 'system',
+				'content' => isset( $spec['system'] ) ? $spec['system'] : '',
+			),
+		);
+		foreach ( $this->render_messages( isset( $spec['messages'] ) ? $spec['messages'] : array() ) as $message ) {
+			$messages[] = $message;
+		}
+
 		$body = array(
 			'model'       => $this->model,
-			'max_tokens'  => 4096,
-			'temperature' => $temperature,
-			'messages'    => array(
+			'max_tokens'  => isset( $spec['max_tokens'] ) ? (int) $spec['max_tokens'] : self::MAX_TOKENS,
+			// Still valid here, unlike the Anthropic path.
+			'temperature' => isset( $spec['temperature'] ) ? (float) $spec['temperature'] : 0.7,
+			'messages'    => $messages,
+			'tools'       => array(
 				array(
-					'role'    => 'system',
-					'content' => $system,
-				),
-				array(
-					'role'    => 'user',
-					'content' => $user,
+					'type'     => 'function',
+					'function' => array(
+						'name'        => $tool['name'],
+						'description' => isset( $tool['description'] ) ? $tool['description'] : '',
+						'parameters'  => $tool['input_schema'],
+					),
 				),
 			),
-			'tools'       => array( $tool ),
+			// No `strict`: the tree is recursive and structured output cannot
+			// express that. Styble_AI_Validator is the enforcement layer.
 			'tool_choice' => array(
 				'type'     => 'function',
-				'function' => array( 'name' => 'build_layout' ),
+				'function' => array( 'name' => $tool['name'] ),
 			),
 		);
 
+		return $this->send( $body, $tool['name'] );
+	}
+
+	/**
+	 * Turn provider-neutral messages into chat/completions content parts.
+	 *
+	 * @param array $messages Neutral messages.
+	 *
+	 * @return array
+	 */
+	private function render_messages( array $messages ) {
+		$out = array();
+
+		foreach ( $messages as $message ) {
+			$role  = isset( $message['role'] ) ? $message['role'] : 'user';
+			$text  = isset( $message['text'] ) ? (string) $message['text'] : '';
+			$image = isset( $message['image'] ) ? (string) $message['image'] : '';
+
+			if ( $image ) {
+				$out[] = array(
+					'role'    => $role,
+					'content' => array(
+						array(
+							'type' => 'text',
+							'text' => $text,
+						),
+						array(
+							'type'      => 'image_url',
+							'image_url' => array( 'url' => $image ),
+						),
+					),
+				);
+				continue;
+			}
+
+			$out[] = array(
+				'role'    => $role,
+				'content' => $text,
+			);
+		}
+
+		return $out;
+	}
+
+	/**
+	 * POST the request and pull the forced function-call arguments.
+	 *
+	 * @param array  $body      Request body.
+	 * @param string $tool_name Expected function name.
+	 *
+	 * @return array|WP_Error
+	 */
+	private function send( array $body, $tool_name ) {
 		$headers = array(
 			'content-type'  => 'application/json',
 			'authorization' => 'Bearer ' . $this->api_key,
@@ -206,7 +247,7 @@ class Styble_AI_OpenAI_Compatible_Provider {
 		$response = wp_remote_post(
 			$this->endpoint,
 			array(
-				'timeout' => 60,
+				'timeout' => 120,
 				'headers' => $headers,
 				'body'    => wp_json_encode( $body ),
 			)
@@ -232,200 +273,25 @@ class Styble_AI_OpenAI_Compatible_Provider {
 			return new WP_Error( 'styble_ai_api_error', 'AI request failed: ' . $msg );
 		}
 
-		// Pull the forced function call arguments (our IR).
 		$args = null;
 		if ( isset( $data['choices'][0]['message']['tool_calls'][0]['function']['arguments'] ) ) {
 			$args = $data['choices'][0]['message']['tool_calls'][0]['function']['arguments'];
 		}
 
 		if ( null === $args ) {
-			return new WP_Error( 'styble_ai_no_tool_use', 'The model did not return structured layout data. The chosen model may not support function calling — try Groq/Cerebras with Llama 3.3 70B.' );
+			return new WP_Error(
+				'styble_ai_no_tool_use',
+				'The model did not call ' . $tool_name . '. The chosen model may not support function calling — try Groq/Cerebras with Llama 3.3 70B.'
+			);
 		}
 
 		// arguments is normally a JSON string; some providers hand back an object.
-		$ir = is_array( $args ) ? $args : json_decode( $args, true );
+		$tree = is_array( $args ) ? $args : json_decode( $args, true );
 
-		if ( ! is_array( $ir ) ) {
+		if ( ! is_array( $tree ) ) {
 			return new WP_Error( 'styble_ai_bad_json', 'The model returned malformed layout JSON.' );
 		}
 
-		return $ir;
-	}
-
-	/**
-	 * System prompt for new generation.
-	 */
-	private function system_prompt( $context ) {
-		return implode(
-			"\n",
-			array(
-				'You are a WordPress layout designer. Turn the user request into clean, well-structured page sections using ONLY the schema of the build_layout function. You MUST call build_layout with valid arguments.',
-				'',
-				'Rules:',
-				'- Compose one or more "sections". A hero is usually one section; features, testimonials, CTA are separate sections.',
-				'- Write real, specific, publishable copy — never lorem ipsum or placeholders like "Your text here".',
-				'- Prefer 2 or 3 columns for feature/benefit grids. Keep each column focused.',
-				'- Use "tone" to create visual rhythm: alternate default/light, use dark or accent for hero or CTA.',
-				'- Use "full" width for hero and CTA bands; "default" for text-heavy content.',
-				'- Images are placeholders (no URL); give a clear alt describing the intended photo.',
-				'- Keep headings concise. Do not stuff a section with too many blocks.',
-				'',
-				'Site context (use it to match tone and wording): ' . $context,
-			)
-		);
-	}
-
-	/**
-	 * System prompt for contextual editing of an existing selection.
-	 */
-	private function edit_system_prompt( $context ) {
-		return implode(
-			"\n",
-			array(
-				'You are a WordPress layout editor. The user has selected one or more existing blocks and wants to revise them. Return the revised replacement by calling build_layout.',
-				'',
-				'Rules:',
-				'- Return ONLY the replacement for the selection — do not add unrelated sections.',
-				'- If the edit stays within content (rewriting copy, adding a list item, adding a column, changing a heading), return a flat "blocks" array so structure is preserved.',
-				'- If the edit changes a whole section\'s tone/width or replaces an entire section, return "sections" instead.',
-				'- Preserve the parts of the existing content the user did not ask to change; keep real, specific copy (no lorem ipsum).',
-				'- Match the number and kind of blocks to the request; do not drop content unless asked.',
-				'- Images stay as placeholders (no URL); keep or improve the alt text.',
-				'',
-				'Site context (use it to match tone and wording): ' . $context,
-			)
-		);
-	}
-
-	/**
-	 * The function whose parameters ARE our IR. In edit mode it also accepts a
-	 * flat "blocks" list; in generate mode only "sections".
-	 */
-	private function tool_definition( $edit ) {
-		$block_schema = $this->block_schema();
-
-		$properties = array(
-			'sections' => $this->sections_schema( $block_schema ),
-		);
-		$required = array( 'sections' );
-
-		if ( $edit ) {
-			$properties['blocks'] = array(
-				'type'        => 'array',
-				'description' => 'Flat replacement blocks (preferred for in-place edits). Use this OR "sections", not both.',
-				'items'       => $block_schema,
-			);
-			$required = array();
-		}
-
-		return array(
-			'type'     => 'function',
-			'function' => array(
-				'name'        => 'build_layout',
-				'description' => $edit
-					? 'Return the revised replacement for the selected blocks as either a flat "blocks" list or "sections".'
-					: 'Produce the page layout as a list of sections built from core WordPress blocks.',
-				'parameters'  => array(
-					'type'       => 'object',
-					'properties' => $properties,
-					'required'   => $required,
-				),
-			),
-		);
-	}
-
-	/**
-	 * The "sections" array schema (shared by generate + edit).
-	 */
-	private function sections_schema( $block_schema ) {
-		return array(
-			'type'        => 'array',
-			'description' => 'Ordered list of page sections.',
-			'items'       => array(
-				'type'       => 'object',
-				'properties' => array(
-					'label'  => array(
-						'type'        => 'string',
-						'description' => 'Short internal name, e.g. "Hero", "Features", "CTA".',
-					),
-					'tone'   => array(
-						'type' => 'string',
-						'enum' => array( 'default', 'light', 'dark', 'accent' ),
-					),
-					'width'  => array(
-						'type' => 'string',
-						'enum' => array( 'full', 'wide', 'default' ),
-					),
-					'blocks' => array(
-						'type'  => 'array',
-						'items' => $block_schema,
-					),
-				),
-				'required'   => array( 'blocks' ),
-			),
-		);
-	}
-
-	/**
-	 * Schema for a single leaf/columns block node.
-	 */
-	private function block_schema() {
-		return array(
-			'type'       => 'object',
-			'properties' => array(
-				'type'     => array(
-					'type'        => 'string',
-					'enum'        => array( 'heading', 'paragraph', 'buttons', 'list', 'quote', 'image', 'spacer', 'columns' ),
-					'description' => 'The block kind.',
-				),
-				'level'    => array(
-					'type'        => 'integer',
-					'description' => 'For heading: 1-4.',
-				),
-				'text'     => array(
-					'type'        => 'string',
-					'description' => 'For heading, paragraph, quote: the text. May contain <strong>, <em>, <a href>.',
-				),
-				'citation' => array(
-					'type'        => 'string',
-					'description' => 'For quote: who said it.',
-				),
-				'ordered'  => array(
-					'type'        => 'boolean',
-					'description' => 'For list: true = numbered.',
-				),
-				'items'    => array(
-					'type'        => 'array',
-					'description' => 'For list: array of strings. For buttons: array of {label,url,style}.',
-					'items'       => array( 'type' => array( 'string', 'object' ) ),
-				),
-				'alt'      => array(
-					'type'        => 'string',
-					'description' => 'For image: describe the intended photo.',
-				),
-				'caption'  => array(
-					'type'        => 'string',
-					'description' => 'For image: optional caption.',
-				),
-				'height'   => array(
-					'type'        => 'integer',
-					'description' => 'For spacer: height in pixels (8-400).',
-				),
-				'columns'  => array(
-					'type'        => 'array',
-					'description' => 'For columns: array of { "blocks": [ leaf blocks, no further columns ] }.',
-					'items'       => array(
-						'type'       => 'object',
-						'properties' => array(
-							'blocks' => array(
-								'type'  => 'array',
-								'items' => array( 'type' => 'object' ),
-							),
-						),
-					),
-				),
-			),
-			'required'   => array( 'type' ),
-		);
+		return $tree;
 	}
 }
