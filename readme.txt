@@ -67,8 +67,12 @@ Step 1 — Install & activate
   3. Activate it under Plugins.
 
 Step 2 — Pick a provider and get a key
-  Any provider works as long as the chosen model supports function/tool calling.
-  Free and recommended for experimenting:
+  Function/tool calling is necessary but NOT sufficient. A section is a nested
+  block tree, and smaller models emit malformed JSON for it — measured here,
+  llama-3.3-70b-versatile on Groq produced a tool call Groq itself could not
+  parse (a missing closing bracket), which fails before the tree ever reaches
+  the validator. Prefer Claude; Gemini 2.0 Flash is the best free option and is
+  also the free choice that handles image uploads.
 
     Provider    Cost        Suggested model              Get a key
     --------    ----        ---------------              ---------
@@ -111,8 +115,15 @@ Step 5 — Test prompt (full small page)
     button. Real, specific copy — no placeholders.
 
 == Troubleshooting ==
+* "produced a malformed layout that <host> rejected" — the model emitted invalid
+  JSON for the tool call, so the provider refused it before our validator saw it
+  and the corrective retry could not help. Use a larger model: Claude, or Gemini
+  2.0 Flash on the free tier.
 * "did not call emit_layout" — the model does not support function calling.
-  Switch to Groq or Cerebras with a Llama 3.3 70B model.
+  Switch to Gemini or Claude.
+* "Request too large ... tokens per minute" — a free tier counting max_tokens as
+  reserved. Groq allows 12000 TPM, which fits one request but not a request plus
+  its corrective retry inside the same minute.
 * "did not satisfy the Styble block contract, twice" — the sidebar lists the
   validator's reasons underneath. An attr_unknown or block_not_allowlisted means
   the model wanted something outside the v1 allowlist; widen it in

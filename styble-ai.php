@@ -97,6 +97,6 @@ function styble_ai_admin_notice() {
 	if ( $screen && 'settings_page_styble-ai' === $screen->id ) {
 		return;
 	}
-	echo '<div class="notice notice-info is-dismissible"><p><strong>Styble AI:</strong> pick a provider and add an API key under <a href="' . esc_url( admin_url( 'options-general.php?page=styble-ai' ) ) . '">Settings &rarr; Styble AI</a> to start generating. No Anthropic credits? Groq/Cerebras run Llama 3.3 70B free.</p></div>';
+	echo '<div class="notice notice-info is-dismissible"><p><strong>Styble AI:</strong> pick a provider and add an API key under <a href="' . esc_url( admin_url( 'options-general.php?page=styble-ai' ) ) . '">Settings &rarr; Styble AI</a> to start generating. No Anthropic credits? Gemini 2.0 Flash is free and handles the nested layout schema.</p></div>';
 }
 add_action( 'admin_notices', 'styble_ai_admin_notice' );

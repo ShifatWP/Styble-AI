@@ -37,10 +37,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Styble_AI_OpenAI_Compatible_Provider {
 
 	/**
-	 * Default output budget. A full section tree does not fit in the 4096 the
-	 * earlier core-block pipeline used.
+	 * Default output budget.
+	 *
+	 * Deliberately NOT the 16000 the Anthropic path uses. That figure exists
+	 * because thinking shares Claude's budget; nothing here does. Worse,
+	 * max_tokens is counted as *reserved* tokens against per-minute limits, so a
+	 * large value fails before a single token is generated: Groq's free tier
+	 * allows 12000 TPM, and 16000 + the ~2.5k prompt is rejected outright with
+	 * "Request too large". Groq's free tier is a realistic target, so the
+	 * default has to fit inside it.
+	 *
+	 * One section's tree is well under this — the hero fixture is ~500 tokens.
 	 */
-	const MAX_TOKENS = 16000;
+	const MAX_TOKENS = 4096;
 
 	private $api_key;
 	private $model;
@@ -65,7 +74,7 @@ class Styble_AI_OpenAI_Compatible_Provider {
 	public static function presets() {
 		return array(
 			'groq'       => array(
-				'label'    => 'Groq (free — Llama 3.3 70B, recommended)',
+				'label'    => 'Groq (free — Llama 3.3 70B; struggles with this schema)',
 				'endpoint' => 'https://api.groq.com/openai/v1/chat/completions',
 				'model'    => 'llama-3.3-70b-versatile',
 				'signup'   => 'https://console.groq.com/keys',
@@ -101,7 +110,7 @@ class Styble_AI_OpenAI_Compatible_Provider {
 				'signup'   => 'https://api.together.xyz/settings/api-keys',
 			),
 			'gemini'     => array(
-				'label'    => 'Google Gemini (free — vision + tools, for image uploads)',
+				'label'    => 'Google Gemini (free — vision + tools; best free option)',
 				'endpoint' => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
 				'model'    => 'gemini-2.0-flash',
 				'signup'   => 'https://aistudio.google.com/app/apikey',
@@ -226,6 +235,16 @@ class Styble_AI_OpenAI_Compatible_Provider {
 	}
 
 	/**
+	 * Host name of the configured endpoint, for error messages.
+	 *
+	 * @return string
+	 */
+	private function provider_label() {
+		$host = wp_parse_url( $this->endpoint, PHP_URL_HOST );
+		return $host ? $host : 'the provider';
+	}
+
+	/**
 	 * POST the request and pull the forced function-call arguments.
 	 *
 	 * @param array  $body      Request body.
@@ -270,6 +289,28 @@ class Styble_AI_OpenAI_Compatible_Provider {
 			} elseif ( isset( $data['message'] ) ) {
 				$msg = $data['message'];
 			}
+
+			// The model tried to call the tool and produced something the
+			// provider could not parse — in practice, malformed JSON (a missing
+			// bracket is the common one on smaller models). The provider rejects
+			// it at the API boundary, so it never reaches our validator and the
+			// corrective retry cannot help. The raw attempt comes back in
+			// failed_generation, and the default message points at a field the
+			// user cannot see, so say what actually happened instead.
+			if ( isset( $data['error']['failed_generation'] ) ) {
+				return new WP_Error(
+					'styble_ai_malformed_tool_call',
+					sprintf(
+						'%s produced a malformed layout that %s rejected before it could be checked. '
+							. 'This usually means the model is not strong enough for a nested tool schema — '
+							. 'try Claude, Gemini, or another larger model.',
+						$this->model,
+						$this->provider_label()
+					),
+					array( 'failed_generation' => $data['error']['failed_generation'] )
+				);
+			}
+
 			return new WP_Error( 'styble_ai_api_error', 'AI request failed: ' . $msg );
 		}
 
@@ -281,7 +322,7 @@ class Styble_AI_OpenAI_Compatible_Provider {
 		if ( null === $args ) {
 			return new WP_Error(
 				'styble_ai_no_tool_use',
-				'The model did not call ' . $tool_name . '. The chosen model may not support function calling — try Groq/Cerebras with Llama 3.3 70B.'
+				'The model did not call ' . $tool_name . '. The chosen model may not support function calling — try Gemini or Claude.'
 			);
 		}
 

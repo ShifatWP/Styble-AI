@@ -90,7 +90,8 @@ class Styble_AI_Settings {
 		?>
 		<div class="wrap">
 			<h1>Styble AI</h1>
-			<p>Experimental build. Pick a provider, paste that provider's API key, and generate Styble block sections from a prompt inside the editor. Requires Styble Pro. Out of Anthropic credits? <strong>Groq</strong> and <strong>Cerebras</strong> run Llama 3.3 70B free and support the function-calling this plugin needs.</p>
+			<p>Experimental build. Pick a provider, paste that provider's API key, and generate Styble block sections from a prompt inside the editor. Requires Styble Pro.</p>
+			<p><strong>Model choice matters here.</strong> A section is a nested block tree, and smaller models emit malformed JSON for it — Llama 3.3 70B was measured producing an unparseable tool call. <strong>Claude</strong> is the most reliable; <strong>Gemini 2.0 Flash</strong> is the best free option and also handles image uploads.</p>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'styble_ai_settings' ); ?>
 				<table class="form-table" role="presentation">
