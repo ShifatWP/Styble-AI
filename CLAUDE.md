@@ -13,7 +13,7 @@
 >   → brand context (styble_global_settings)
 >   → catalog-generated system prompt + emit_layout tool schema
 >   → provider, forced tool call            includes/class-{anthropic,openai-compatible}-provider.php
->   → validator, 30 codes, never coerces    includes/class-validator.php
+>   → validator, 31 codes, never coerces    includes/class-validator.php
 >   → one corrective retry with its errors  includes/class-generator.php
 >   → validated tree over REST              includes/class-rest-controller.php
 >   → stock photos, AFTER validation        includes/class-media.php
@@ -64,7 +64,7 @@
 >
 > ```
 > php scripts/generate-catalog.php    # regenerate from Styble Pro
-> php scripts/validate.php            # 32 contract fixtures
+> php scripts/validate.php            # 33 contract fixtures
 > php scripts/test-generator.php      # the retry loop, against a stub provider
 > php scripts/test-page-applier.php   # headless layout maths + uniqueId + markup
 > php scripts/test-prompt.php         # invariants of the prompt and tool schema

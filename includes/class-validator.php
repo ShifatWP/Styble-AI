@@ -53,6 +53,34 @@ class Styble_AI_Validator {
 	const IMAGE     = 'styble/advanced-image';
 
 	/**
+	 * The attribute that carries each block's actual content, and the toggle (if
+	 * any) that makes it optional.
+	 *
+	 * Without this a structurally perfect section of empty blocks validates
+	 * clean: every rule passes, the tree applies, and the editor shows a column
+	 * of "Enter your text...." placeholders. That is a worse outcome than a
+	 * rejection, because it looks like the feature ran. Sparse attributes make it
+	 * easy to hit — an omitted key is indistinguishable from an empty one, and
+	 * both fall back to a placeholder default.
+	 *
+	 * The `unless` entry is where emptiness is legitimate: an icon-only button
+	 * has no label, and a plain rule has no caption.
+	 */
+	const CONTENT_ATTRS = array(
+		'styble/advanced-text'   => array( 'attr' => 'advancedTextContent' ),
+		'styble/advanced-image'  => array( 'attr' => 'imgAltText' ),
+		'styble/icon-list-item'  => array( 'attr' => 'listText' ),
+		'styble/advanced-button' => array(
+			'attr'   => 'labelText',
+			'unless' => 'showLabel',
+		),
+		'styble/separator'       => array(
+			'attr'   => 'separatorText',
+			'unless' => 'separatorLabelEnable',
+		),
+	);
+
+	/**
 	 * @var Styble_AI_Catalog
 	 */
 	private $catalog;
@@ -244,6 +272,10 @@ class Styble_AI_Validator {
 
 		$attrs = $this->read_attrs( $node, $path );
 		$this->validate_attrs( $name, $attrs, $path . '.attrs' );
+		// Outside validate_attrs() on purpose: that returns early on an empty
+		// attribute bag, and a content block with NO attributes at all is the
+		// exact failure this catches.
+		$this->check_content_present( $name, $attrs, $path );
 
 		$children = $this->read_children( $node, $name, $path );
 
@@ -373,6 +405,61 @@ class Styble_AI_Validator {
 	 *
 	 * @return void
 	 */
+	/**
+	 * A content-bearing block must actually carry content.
+	 *
+	 * The blocks in CONTENT_ATTRS all ship a placeholder default — "Enter your
+	 * text....", "List Item Text", the literal word "Separator" — so a tree that
+	 * omits the content attribute passes every structural rule and then renders a
+	 * section of grey placeholders. Rejecting it is the only way the retry gets a
+	 * chance to write the copy, and the only way a failure looks like a failure.
+	 *
+	 * @param string $name  Block name.
+	 * @param mixed  $attrs Attributes (may be empty or absent).
+	 * @param string $path  JSON path of the node.
+	 *
+	 * @return void
+	 */
+	private function check_content_present( $name, $attrs, $path ) {
+		if ( ! isset( self::CONTENT_ATTRS[ $name ] ) ) {
+			return;
+		}
+
+		$rule  = self::CONTENT_ATTRS[ $name ];
+		$attrs = is_array( $attrs ) ? $attrs : array();
+
+		// Explicitly switched off: an icon-only button has no label, and a plain
+		// rule has no caption.
+		if ( isset( $rule['unless'] ) && array_key_exists( $rule['unless'], $attrs ) && false === $attrs[ $rule['unless'] ] ) {
+			return;
+		}
+
+		// strip_tags(), not wp_strip_all_tags(): this class also runs from the
+		// WP-free fixture suite. "<br>" and "&nbsp;" are empty content.
+		$value = isset( $attrs[ $rule['attr'] ] ) ? $attrs[ $rule['attr'] ] : '';
+		if ( is_string( $value ) ) {
+			$text = trim( str_replace( array( '&nbsp;', "\xc2\xa0" ), ' ', strip_tags( $value ) ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags
+			if ( '' !== $text ) {
+				return;
+			}
+		}
+
+		$hint = isset( $rule['unless'] )
+			? sprintf( ' Set it, or set "%s" to false if this block is meant to have none.', $rule['unless'] )
+			: '';
+
+		$this->result->add(
+			'content_empty',
+			$path . '.attrs.' . $rule['attr'],
+			sprintf(
+				'"%s" carries the content of "%s" and is empty, so the block would render its placeholder.%s',
+				$rule['attr'],
+				$name,
+				$hint
+			)
+		);
+	}
+
 	private function validate_attrs( $name, $attrs, $path ) {
 		if ( ! $attrs ) {
 			return;

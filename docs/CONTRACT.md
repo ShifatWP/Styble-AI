@@ -173,6 +173,19 @@ Image filling is off unless a provider and key are configured, and every failure
 no key, rate limit, no results, failed download — leaves the placeholder untouched
 and reports a warning. An image is worth less than the page.
 
+## Content must be present
+
+`styble/advanced-text`, `styble/advanced-image`, `styble/advanced-button`,
+`styble/icon-list-item` and `styble/separator` all ship a *placeholder* default —
+"Enter your text....", "List Item Text", the literal word "Separator". A tree that
+omits the content attribute therefore passes every structural rule and then renders a
+column of grey placeholders, which is worse than a rejection because it looks like the
+feature ran. Empty or absent content → `content_empty`.
+
+Two exemptions, both where emptiness is a real design choice: `labelText` when
+`showLabel` is explicitly `false` (an icon-only button), and `separatorText` when
+`separatorLabelEnable` is explicitly `false` (a plain rule).
+
 ## Placeholder copy
 
 Several blocks ship real strings as `block.json` defaults — `separatorText` is
@@ -229,6 +242,7 @@ retry. Errors accumulate — one pass reports everything wrong with the tree.
 | `attr_unknown` | Attribute not AI-editable for this block |
 | `attr_type` | Wrong scalar type |
 | `attr_value` | String outside the attribute's recorded list of legal values |
+| `content_empty` | A content-bearing block's content attribute is empty or absent |
 | `attr_shape` | Object value does not match the default's shape |
 | `image_not_placeholder` | Invented media URL or attachment id |
 | `layout_unknown` | Not a Styble layout id |

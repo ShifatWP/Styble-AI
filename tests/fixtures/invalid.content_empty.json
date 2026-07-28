@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": { "layout": "l-1" },
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          { "block": "styble/advanced-text", "attrs": { "textHTMLTag": "h2" } }
+        ]
+      }
+    ]
+  }
+}

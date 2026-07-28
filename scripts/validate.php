@@ -232,6 +232,7 @@ $documented = array(
 	'attr_unknown',
 	'attr_type',
 	'attr_value',
+	'content_empty',
 	'attr_shape',
 	'image_not_placeholder',
 	'layout_unknown',

@@ -166,6 +166,10 @@ class Styble_AI_Media {
 	private function resolve( $query ) {
 		$query = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( $query ) ) );
 		if ( '' === $query ) {
+			// The validator now rejects an empty imgAltText, so reaching here means
+			// something upstream let one through. Say so rather than returning a
+			// blank image with no explanation.
+			$this->warnings[] = 'An image had no description, so no photo could be searched for.';
 			return 0;
 		}
 

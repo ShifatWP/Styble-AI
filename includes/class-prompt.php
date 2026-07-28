@@ -206,6 +206,8 @@ class Styble_AI_Prompt {
 				'- **Attributes belong to their own block.** Each block below lists its own keys, and only those are legal ON THAT BLOCK. `textHTMLTag` and `subHeading` belong to styble/advanced-text; putting them on a styble/container is rejected, because a container holds columns and has no text of its own. If you want a heading, add a styble/advanced-text block — do not describe it with an attribute.',
 				'- An attribute written `name (a|b|c)` takes exactly one of those values. Anything else is rejected.',
 				'- An attribute written `name (true/false)` takes a JSON boolean: `true`, not `"true"`. A quoted string is rejected.',
+				'- Object-valued attributes are real JSON objects, not strings. `{"device":{"Desktop":16}}` is correct; `"{\\"device\\":{\\"Desktop\\":16}}"` is rejected. Never quote a `{`.',
+				'- **Every block must carry its content.** advanced-text needs advancedTextContent, advanced-image needs imgAltText, advanced-button needs labelText, icon-list-item needs listText. An empty or omitted one is rejected, because the block would render a grey "Enter your text...." placeholder instead.',
 				'- Attributes tagged (responsive), (responsive box), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
 				'- Write real, specific, publishable copy. Never lorem ipsum, never "Your text here".',
 				'- Never invent an image URL or attachment id. Describe the photograph you want in `imgAltText` instead — that description is used verbatim to search a stock photo library, so write it as a subject, not a caption: "barista pouring latte art into a white cup", not "Our coffee". Two to eight concrete words, no brand names, no text-in-image, no people by name.',
@@ -275,6 +277,8 @@ class Styble_AI_Prompt {
 			$lines[] = $line;
 		}
 
+		$lines[] = '';
+		$lines[] = '**A card with a photo cannot be an info-box.** styble/info-box does not accept styble/advanced-image as a child — it is for icon + heading + text + button cards only. For a card with a photograph (a team member, a case study, a product), use a styble/column and stack styble/advanced-image and styble/advanced-text inside it.';
 		$lines[] = '';
 		$lines[] = 'Content goes in these attributes: advanced-text uses advancedTextContent, with textHTMLTag set to h1 for a page title, h2 or h3 for a section heading, and p for body copy; advanced-button uses labelText and addLink; advanced-image uses imgAltText; info-box needs layoutType set explicitly (it defaults to blank, which renders nothing) plus badgeText when showBadge is true; icon-list-item uses listText; separator uses separatorText, and set separatorLabelEnable to false for a plain rule with no caption.';
 
