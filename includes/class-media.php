@@ -171,18 +171,24 @@ class Styble_AI_Media {
 
 		$provider = self::provider();
 		$key      = 'styble_ai_media_' . md5( $provider . '|' . strtolower( $query ) );
-		$cached   = get_transient( $key );
 
-		if ( is_array( $cached ) ) {
-			foreach ( $cached as $id ) {
-				$id = (int) $id;
-				// A cached id can point at an attachment the user has since
-				// deleted; treat that as a miss rather than a broken image.
-				if ( $id && ! in_array( $id, $this->used, true ) && get_post( $id ) ) {
-					$this->used[] = $id;
-					return $id;
-				}
+		// Keyed by SOURCE URL, not just a list of ids. Two images asking for the
+		// same subject have to get different photographs, and an id-only cache
+		// cannot tell "already used" from "a different photo of the same thing" —
+		// so it downloads the top result a second time and the section shows the
+		// identical picture twice under two attachment ids.
+		$cached = get_transient( $key );
+		$cached = is_array( $cached ) ? $cached : array();
+
+		foreach ( $cached as $url => $id ) {
+			$id = (int) $id;
+			// A cached id can point at an attachment the user has since deleted;
+			// treat that as a miss rather than a broken image.
+			if ( ! $id || in_array( $id, $this->used, true ) || ! get_post( $id ) ) {
+				continue;
 			}
+			$this->used[] = $id;
+			return $id;
 		}
 
 		$hits = $this->search( $query );
@@ -195,22 +201,28 @@ class Styble_AI_Media {
 			return 0;
 		}
 
-		$ids = is_array( $cached ) ? $cached : array();
-
 		foreach ( $hits as $hit ) {
+			// Already in the library, and the loop above established its id is
+			// spoken for in this pass. Move to a genuinely different photo rather
+			// than downloading this one again.
+			if ( isset( $cached[ $hit['url'] ] ) ) {
+				continue;
+			}
+
 			$id = $this->sideload( $hit, $query );
 			if ( is_wp_error( $id ) ) {
 				$this->warnings[] = sprintf( '%s: %s', $query, $id->get_error_message() );
 				continue;
 			}
-			$ids[] = $id;
-			set_transient( $key, array_values( array_unique( $ids ) ), self::CACHE_TTL );
 
-			if ( ! in_array( $id, $this->used, true ) ) {
-				$this->used[] = $id;
-				return $id;
-			}
+			$cached[ $hit['url'] ] = $id;
+			set_transient( $key, $cached, self::CACHE_TTL );
+
+			$this->used[] = $id;
+			return $id;
 		}
+
+		$this->warnings[] = sprintf( 'Only found photos already used for "%s".', $query );
 
 		return 0;
 	}
