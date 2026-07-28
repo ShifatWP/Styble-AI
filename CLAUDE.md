@@ -16,6 +16,7 @@
 >   → validator, 30 codes, never coerces    includes/class-validator.php
 >   → one corrective retry with its errors  includes/class-generator.php
 >   → validated tree over REST              includes/class-rest-controller.php
+>   → stock photos, AFTER validation        includes/class-media.php
 >   → applier: createBlock() → insertBlocks assets/applier.js
 > ```
 >

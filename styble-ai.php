@@ -35,6 +35,7 @@ require_once STYBLE_AI_DIR . 'includes/class-anthropic-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-openai-compatible-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-provider-factory.php';
 require_once STYBLE_AI_DIR . 'includes/class-generator.php';
+require_once STYBLE_AI_DIR . 'includes/class-media.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-applier.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-planner.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-store.php';

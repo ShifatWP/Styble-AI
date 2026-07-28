@@ -23,6 +23,9 @@ own uniqueId. See docs/CONTRACT.md.
   toolbar, describe the change.
 * Attach a design image (upload or paste) and the AI builds a matching layout —
   requires a vision-capable model (see below).
+* Optional stock photos: point it at Pexels or Unsplash and generated images are
+  filled from the description the AI wrote, downloaded into your Media Library as
+  real attachments. Off by default; without it, images stay blank placeholders.
 * Bring your own API key. Works with Anthropic (Claude) OR any OpenAI-compatible
   provider — including FREE ones like Groq and Gemini. No hosted proxy yet;
   that comes later for the credits/subscription business model.
@@ -168,6 +171,7 @@ Step 5 — Test prompt (full small page)
 * includes/class-openai-compatible-provider.php  Groq/Cerebras/OpenRouter/DeepSeek/
                                               Mistral/Together/Gemini/custom.
 * includes/class-provider-factory.php         Settings -> the configured provider.
+* includes/class-media.php                    Alt text -> stock photo -> attachment id.
 * includes/class-rest-controller.php          /styble-ai/v1/generate; returns a tree.
 * includes/class-page-planner.php             Chat message -> ordered section briefs.
 * includes/class-page-applier.php             Headless: tree -> block markup + uniqueId.

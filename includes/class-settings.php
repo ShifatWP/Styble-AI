@@ -81,16 +81,36 @@ class Styble_AI_Settings {
 				'default'           => '',
 			)
 		);
+		register_setting(
+			'styble_ai_settings',
+			'styble_ai_media_provider',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_key',
+				'default'           => '',
+			)
+		);
+		register_setting(
+			'styble_ai_settings',
+			'styble_ai_media_key',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => '',
+			)
+		);
 	}
 
 	public function render() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$provider = get_option( 'styble_ai_provider', 'anthropic' );
-		$key      = get_option( 'styble_ai_api_key', '' );
-		$model    = get_option( 'styble_ai_model', '' );
-		$base_url = get_option( 'styble_ai_base_url', '' );
+		$provider   = get_option( 'styble_ai_provider', 'anthropic' );
+		$key        = get_option( 'styble_ai_api_key', '' );
+		$model      = get_option( 'styble_ai_model', '' );
+		$base_url   = get_option( 'styble_ai_base_url', '' );
+		$media_prov = get_option( 'styble_ai_media_provider', '' );
+		$media_key  = get_option( 'styble_ai_media_key', '' );
 
 		// Provider dropdown: Anthropic (native) + every OpenAI-compatible preset.
 		$presets   = Styble_AI_OpenAI_Compatible_Provider::presets();
@@ -153,6 +173,35 @@ class Styble_AI_Settings {
 						</td>
 					</tr>
 				</table>
+
+				<h2>Stock photos</h2>
+				<p>Optional. Leave the provider on “None” and generated images stay blank placeholders you fill in yourself — the AI still writes the alt text describing what the picture should show.</p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="styble_ai_media_provider">Image source</label></th>
+						<td>
+							<select name="styble_ai_media_provider" id="styble_ai_media_provider">
+								<option value="" <?php selected( $media_prov, '' ); ?>>None — leave placeholders</option>
+								<?php foreach ( Styble_AI_Media::providers() as $id => $p ) : ?>
+									<option value="<?php echo esc_attr( $id ); ?>"
+										data-signup="<?php echo esc_attr( $p['signup'] ); ?>"
+										<?php selected( $media_prov, $id ); ?>>
+										<?php echo esc_html( $p['label'] ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description">Photos are downloaded into your Media Library and the block gets a real attachment, so they behave like any other upload — crop, replace, reuse. The photographer is credited in the attachment caption.</p>
+						</td>
+					</tr>
+					<tr id="styble_ai_media_key_row">
+						<th scope="row"><label for="styble_ai_media_key">Image API key</label></th>
+						<td>
+							<input name="styble_ai_media_key" id="styble_ai_media_key" type="password" autocomplete="off"
+								value="<?php echo esc_attr( $media_key ); ?>" class="regular-text" placeholder="paste key" />
+							<p class="description">Free from the provider. <a id="styble_ai_media_signup" href="https://www.pexels.com/api/new/" target="_blank" rel="noopener">Get an image API key &rarr;</a><br />Both have free tiers with hourly limits; results are cached per search phrase, so the same description reuses the photo already in your library instead of downloading it twice.</p>
+						</td>
+					</tr>
+				</table>
 				<?php submit_button(); ?>
 			</form>
 			<script>
@@ -169,6 +218,19 @@ class Styble_AI_Settings {
 				}
 				sel.addEventListener( 'change', sync );
 				sync();
+
+				var media = document.getElementById( 'styble_ai_media_provider' );
+				var mediaKeyRow = document.getElementById( 'styble_ai_media_key_row' );
+				var mediaSignup = document.getElementById( 'styble_ai_media_signup' );
+				function syncMedia() {
+					var opt = media.options[ media.selectedIndex ];
+					mediaKeyRow.style.display = media.value ? '' : 'none';
+					if ( opt.getAttribute( 'data-signup' ) ) {
+						mediaSignup.href = opt.getAttribute( 'data-signup' );
+					}
+				}
+				media.addEventListener( 'change', syncMedia );
+				syncMedia();
 			} )();
 			</script>
 			<hr />

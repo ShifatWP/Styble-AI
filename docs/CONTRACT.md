@@ -154,9 +154,24 @@ in `assets/applier.js`, which must stay in step.
 
 ## Images
 
-The model writes alt text; the user picks the media. `selectImage` must stay empty
+The model writes alt text and never a URL or an id. `selectImage` must stay empty
 (`{}`) and `selectImageId` must stay blank. An invented URL or attachment id →
 `image_not_placeholder`.
+
+That rule does not bend, and stock photography does not change it. Photos are filled
+in **after** validation, by `includes/class-media.php`: the description the model put
+in `imgAltText` is used as the search query, the photo is downloaded into the media
+library, and `selectImageId` is set to the resulting attachment. A filled tree would
+therefore *fail* this contract if it were fed back in — which is exactly the proof
+that the model could not have produced it.
+
+Only `selectImageId` is written. Styble's frontend resolves it through
+`wp_get_attachment_image_url()` and the editor rebuilds `selectImage` from the
+attachment on mount, so a hand-built image object would only go stale.
+
+Image filling is off unless a provider and key are configured, and every failure —
+no key, rate limit, no results, failed download — leaves the placeholder untouched
+and reports a warning. An image is worth less than the page.
 
 ## Placeholder copy
 

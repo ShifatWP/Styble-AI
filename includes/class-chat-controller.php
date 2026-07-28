@@ -190,7 +190,10 @@ class Styble_AI_Chat_Controller {
 			return $this->with_status( $result );
 		}
 
-		$saved = $store->set_section_tree( $page_id, $section_id, $result['tree'] );
+		// After validation, never before — see Styble_AI_Media.
+		$media = ( new Styble_AI_Media() )->fill( $result['tree'] );
+
+		$saved = $store->set_section_tree( $page_id, $section_id, $media['tree'] );
 		if ( is_wp_error( $saved ) ) {
 			return $this->with_status( $saved );
 		}
@@ -199,8 +202,10 @@ class Styble_AI_Chat_Controller {
 			array_merge(
 				$this->page_payload( $page_id, $store ),
 				array(
-					'sectionId' => $section_id,
-					'attempts'  => $result['attempts'],
+					'sectionId'     => $section_id,
+					'attempts'      => $result['attempts'],
+					'imagesFilled'  => $media['filled'],
+					'imageWarnings' => $media['warnings'],
 				)
 			)
 		);

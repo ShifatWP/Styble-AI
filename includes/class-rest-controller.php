@@ -105,10 +105,18 @@ class Styble_AI_REST_Controller {
 			return $this->as_response_error( $result );
 		}
 
+		// Stock photos are resolved AFTER validation, never before: the model is
+		// still forbidden from inventing a URL or an attachment id, and the
+		// validator still rejects a tree that tries. All this does is act on the
+		// description the model wrote.
+		$media = ( new Styble_AI_Media() )->fill( $result['tree'] );
+
 		return rest_ensure_response(
 			array(
-				'tree'            => $result['tree'],
+				'tree'            => $media['tree'],
 				'attempts'        => $result['attempts'],
+				'imagesFilled'    => $media['filled'],
+				'imageWarnings'   => $media['warnings'],
 				'contractVersion' => $catalog->contract_version(),
 			)
 		);

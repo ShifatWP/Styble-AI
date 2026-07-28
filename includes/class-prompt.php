@@ -208,7 +208,7 @@ class Styble_AI_Prompt {
 				'- An attribute written `name (true/false)` takes a JSON boolean: `true`, not `"true"`. A quoted string is rejected.',
 				'- Attributes tagged (responsive), (responsive box), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
 				'- Write real, specific, publishable copy. Never lorem ipsum, never "Your text here".',
-				'- Images are placeholders: set imgAltText describing the intended photo, and never invent a URL or attachment id.',
+				'- Never invent an image URL or attachment id. Describe the photograph you want in `imgAltText` instead — that description is used verbatim to search a stock photo library, so write it as a subject, not a caption: "barista pouring latte art into a white cup", not "Our coffee". Two to eight concrete words, no brand names, no text-in-image, no people by name.',
 				'- A styble/container holds only styble/column children (or nested containers). Content goes inside the columns.',
 				'',
 				'## Choosing the layout',
