@@ -167,20 +167,28 @@
 		return el( 'ul', { className: 'sac-sections' },
 			props.sections.map( function ( s ) {
 				var state = s.failed ? 'failed' : ( s.built ? 'built' : ( s.id === props.active ? 'active' : 'queued' ) );
-				return el( 'li', { key: s.id, className: 'sac-section sac-section--' + state },
-					el( 'span', { className: 'sac-section-mark' },
-						'built' === state ? icon( 'check', 13 ) : null,
-						'failed' === state ? icon( 'alert', 13 ) : null,
-						'active' === state ? el( C.Spinner, {} ) : null
+				return el( 'li', { key: s.id, className: 'sac-section-row' },
+					el( 'div', { className: 'sac-section sac-section--' + state },
+						el( 'span', { className: 'sac-section-mark' },
+							'built' === state ? icon( 'check', 13 ) : null,
+							'failed' === state ? icon( 'alert', 13 ) : null,
+							'active' === state ? el( C.Spinner, {} ) : null
+						),
+						el( 'span', { className: 'sac-section-name' }, s.heading ),
+						'failed' === state
+							? el( 'button', {
+								type: 'button',
+								className: 'sac-retry',
+								disabled: props.busy,
+								onClick: function () { props.onRetry( s.id ); }
+							}, __( 'Retry', 'styble-ai' ) )
+							: null
 					),
-					el( 'span', { className: 'sac-section-name' }, s.heading ),
-					'failed' === state
-						? el( 'button', {
-							type: 'button',
-							className: 'sac-retry',
-							disabled: props.busy,
-							onClick: function () { props.onRetry( s.id ); }
-						}, __( 'Retry', 'styble-ai' ) )
+					// A red icon and a Retry button with no reason is the one thing
+					// this plugin promised never to do. The server already sends the
+					// validator's per-error path and message; show them.
+					'failed' === state && s.error
+						? el( 'p', { className: 'sac-section-error' }, s.error )
 						: null
 				);
 			} )
@@ -284,7 +292,7 @@
 					patchPlan( planId, function ( m ) {
 						m.sections = m.sections.map( function ( s ) {
 							return s.id === sectionId
-								? Object.assign( {}, s, { built: true, failed: false } )
+								? Object.assign( {}, s, { built: true, failed: false, error: null } )
 								: s;
 						} );
 					} );

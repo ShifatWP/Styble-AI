@@ -135,11 +135,11 @@ class Styble_AI_Prompt {
 			'attrs' => array(
 				'type'                 => 'object',
 				'description'          => 'Sparse attributes. Only the keys listed for this block in the system prompt are legal; omit anything you do not mean to change.',
-				// The fixed-choice attributes are spelled out here as well as in
-				// the prompt. Type alone does not constrain them, and an invented
-				// value ("contained", "centre", "grid") is a legal string, so
-				// without this the provider has no way to stop one.
-				'properties'           => $this->enum_properties(),
+				// The constrained attributes are spelled out here as well as in
+				// the prompt, because neither the prompt nor a bare `type: object`
+				// can stop the two things models actually get wrong: an invented
+				// enum value, and a boolean sent as the string "true".
+				'properties'           => $this->attr_properties(),
 				// True, not false: the properties below are the enums only, not
 				// the whole vocabulary. Unknown keys are caught by the validator,
 				// which can say which block they were wrong for.
@@ -164,7 +164,17 @@ class Styble_AI_Prompt {
 	}
 
 	/**
-	 * Every fixed-choice attribute in the allowlist, as JSON Schema enums.
+	 * The attributes worth declaring in the tool schema, as JSON Schema types.
+	 *
+	 * Two kinds, and both were learned the hard way:
+	 *
+	 *  - **Fixed-choice strings**, as enums. An invented value ("contained",
+	 *    "centre", "grid") is a perfectly good string, so nothing but an enum
+	 *    stops one.
+	 *  - **Booleans.** Measured, not guessed: llama-3.3-70b returned `"true"`
+	 *    and `"false"` as strings for `subHeading`, `fullWidth` and `showLabel`
+	 *    in a single tree, and every section of a six-section page failed on it.
+	 *    A bare `type: object` for `attrs` gave the provider nothing to enforce.
 	 *
 	 * The union across blocks, because `attrs` is one object in the node schema
 	 * and the schema cannot know which block it belongs to. That makes this a
@@ -173,34 +183,53 @@ class Styble_AI_Prompt {
 	 * (`layoutType` is layout1..layout4 on info-box but style-one..style-three
 	 * on icon-list).
 	 *
+	 * Deliberately NOT exhaustive. Free strings need no schema help, objects are
+	 * described far better by the prompt's worked examples, and every entry here
+	 * is repeated at all six nesting levels — so this carries only the two types
+	 * with a demonstrated failure mode.
+	 *
 	 * @return array
 	 */
-	private function enum_properties() {
-		$union = array();
+	private function attr_properties() {
+		$enums    = array();
+		$booleans = array();
 
 		foreach ( $this->catalog->allowlisted_names() as $name ) {
 			$owned = isset( self::APPLIER_OWNED[ $name ] ) ? self::APPLIER_OWNED[ $name ] : array();
 
 			foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
-				if ( in_array( $attr, $owned, true ) || empty( $def['values'] ) ) {
+				if ( in_array( $attr, $owned, true ) ) {
 					continue;
 				}
-				$existing       = isset( $union[ $attr ] ) ? $union[ $attr ] : array();
-				$union[ $attr ] = array_values( array_unique( array_merge( $existing, $def['values'] ) ) );
+				if ( ! empty( $def['values'] ) ) {
+					$existing       = isset( $enums[ $attr ] ) ? $enums[ $attr ] : array();
+					$enums[ $attr ] = array_values( array_unique( array_merge( $existing, $def['values'] ) ) );
+					continue;
+				}
+				if ( isset( $def['type'] ) && 'boolean' === $def['type'] ) {
+					$booleans[ $attr ] = true;
+				}
 			}
 		}
 
 		// `layout` has no value list in the catalog — its choices are the layout
 		// table, not an inspector control — but it is the attribute a wrong
 		// value breaks most visibly, so it is enumerated here too.
-		$union['layout'] = $this->catalog->layout_ids();
+		$enums['layout'] = $this->catalog->layout_ids();
 
 		$properties = array();
-		foreach ( $union as $attr => $values ) {
+		foreach ( $enums as $attr => $values ) {
 			$properties[ $attr ] = array(
 				'type' => 'string',
 				'enum' => $values,
 			);
+		}
+		foreach ( array_keys( $booleans ) as $attr ) {
+			// selectImageId is excluded by construction: block.json calls it a
+			// number, but the contract requires the empty string so the user
+			// picks the media. Declaring the block.json type would invite the one
+			// value the validator rejects.
+			$properties[ $attr ] = array( 'type' => 'boolean' );
 		}
 		ksort( $properties );
 
