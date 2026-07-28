@@ -52,14 +52,30 @@ class Styble_AI_Generator {
 	private $provider;
 
 	/**
-	 * @param Styble_AI_Catalog $catalog  Block catalog.
-	 * @param object            $provider Provider with a complete() method.
+	 * Corrective attempts allowed after the first.
+	 *
+	 * @var int
 	 */
-	public function __construct( Styble_AI_Catalog $catalog, $provider ) {
-		$this->catalog   = $catalog;
-		$this->provider  = $provider;
-		$this->prompt    = new Styble_AI_Prompt( $catalog );
-		$this->validator = new Styble_AI_Validator( $catalog );
+	private $max_retries;
+
+	/**
+	 * @param Styble_AI_Catalog $catalog     Block catalog.
+	 * @param object            $provider    Provider with a complete() method.
+	 * @param int|null          $max_retries Corrective attempts after the first;
+	 *                                       null for the default. Passing 0 is
+	 *                                       how the eval harness measures
+	 *                                       first-try quality — with the retry on,
+	 *                                       a model that never gets it right first
+	 *                                       time scores the same as one that
+	 *                                       always does, which is the number we
+	 *                                       actually want to move.
+	 */
+	public function __construct( Styble_AI_Catalog $catalog, $provider, $max_retries = null ) {
+		$this->catalog     = $catalog;
+		$this->provider    = $provider;
+		$this->prompt      = new Styble_AI_Prompt( $catalog );
+		$this->validator   = new Styble_AI_Validator( $catalog );
+		$this->max_retries = ( null === $max_retries ) ? self::MAX_RETRIES : max( 0, (int) $max_retries );
 	}
 
 	/**
@@ -119,7 +135,7 @@ class Styble_AI_Generator {
 		$last_tree = null;
 		$last_errs = array();
 
-		while ( $attempt <= self::MAX_RETRIES ) {
+		while ( $attempt <= $this->max_retries ) {
 			$attempt++;
 
 			$spec['messages'] = array(
@@ -205,8 +221,13 @@ class Styble_AI_Generator {
 			$parts[] = $error['path'] . ' — ' . $error['message'];
 		}
 
-		$message = 'The generated layout did not satisfy the Styble block contract, twice. '
-			. implode( ' ', $parts );
+		// "twice" only when a corrective attempt actually happened. The eval
+		// harness runs with the retry off, where claiming two attempts is simply
+		// untrue.
+		$message = $this->max_retries > 0
+			? 'The generated layout did not satisfy the Styble block contract, twice. '
+			: 'The generated layout did not satisfy the Styble block contract. ';
+		$message .= implode( ' ', $parts );
 
 		$extra = count( $errors ) - count( $shown );
 		if ( $extra > 0 ) {

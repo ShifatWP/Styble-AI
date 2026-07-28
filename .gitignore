@@ -11,3 +11,7 @@ build/
 
 # Logs
 *.log
+
+# Eval runner: cached provider responses are committed on purpose (they make a
+# run reproducible and let scorers be fixed without re-spending tokens), so
+# nothing here is ignored. Listed for the next person who wonders.

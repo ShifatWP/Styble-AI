@@ -1,0 +1,27 @@
+{
+    "error": "The generated layout did not satisfy the Styble block contract, twice. root.children[0].children[0].attrs.subHeading — \"subHeading\" must be true or false, got \"false\". root.children[0].children[1].attrs.fullWidth — \"fullWidth\" must be true or false, got \"true\". root.children[0].children[1].children[0].attrs.showLabel — \"showLabel\" must be true or false, got \"true\". (1 more problem.)",
+    "code": "styble_ai_invalid_tree",
+    "errors": [
+        {
+            "code": "attr_type",
+            "path": "root.children[0].children[0].attrs.subHeading",
+            "message": "\"subHeading\" must be true or false, got \"false\"."
+        },
+        {
+            "code": "attr_type",
+            "path": "root.children[0].children[1].attrs.fullWidth",
+            "message": "\"fullWidth\" must be true or false, got \"true\"."
+        },
+        {
+            "code": "attr_type",
+            "path": "root.children[0].children[1].children[0].attrs.showLabel",
+            "message": "\"showLabel\" must be true or false, got \"true\"."
+        },
+        {
+            "code": "attr_type",
+            "path": "root.children[0].children[1].children[1].attrs.showLabel",
+            "message": "\"showLabel\" must be true or false, got \"true\"."
+        }
+    ],
+    "tree": null
+}
