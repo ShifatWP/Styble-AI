@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings page (Settings -> Styble AI).
+ * Settings page (top-level admin menu -> Styble AI).
  * Experimental: the API key is stored in wp_options in plaintext. Fine for a
  * local/dev experiment; for production move to the proxy/credits model instead
  * of storing user keys.
@@ -14,17 +14,32 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Styble_AI_Settings {
 
+	/**
+	 * Submenu slug, under the Styble AI top-level menu owned by the chat screen.
+	 */
+	const SLUG = 'styble-ai-settings';
+
 	public function register() {
-		add_action( 'admin_menu', array( $this, 'menu' ) );
+		// Priority 20: the chat screen registers the top-level menu at the
+		// default 10, and a submenu cannot be attached before its parent exists.
+		add_action( 'admin_menu', array( $this, 'menu' ), 20 );
 		add_action( 'admin_init', array( $this, 'fields' ) );
 	}
 
+	/**
+	 * @return string The screen id this page renders under.
+	 */
+	public static function hook_suffix() {
+		return 'styble-ai_page_' . self::SLUG;
+	}
+
 	public function menu() {
-		add_options_page(
-			'Styble AI',
-			'Styble AI',
+		add_submenu_page(
+			Styble_AI_Chat_Page::SLUG,
+			__( 'Styble AI Settings', 'styble-ai' ),
+			__( 'Settings', 'styble-ai' ),
 			'manage_options',
-			'styble-ai',
+			self::SLUG,
 			array( $this, 'render' )
 		);
 	}
@@ -90,7 +105,7 @@ class Styble_AI_Settings {
 		?>
 		<div class="wrap">
 			<h1>Styble AI</h1>
-			<p>Experimental build. Pick a provider, paste that provider's API key, and generate Styble block sections from a prompt inside the editor. Requires Styble Pro.</p>
+			<p>Experimental build. Pick a provider, paste that provider's API key, then either generate sections from the editor sidebar or build whole pages from <a href="<?php echo esc_url( admin_url( 'admin.php?page=' . Styble_AI_Chat_Page::SLUG ) ); ?>">AI Chat</a>. Requires Styble Pro.</p>
 			<p><strong>Model choice matters here.</strong> A section is a nested block tree, and smaller models emit malformed JSON for it — Llama 3.3 70B was measured producing an unparseable tool call. <strong>Claude</strong> is the most reliable; <strong>Gemini 2.0 Flash</strong> is the best free option and also handles image uploads.</p>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'styble_ai_settings' ); ?>
@@ -158,12 +173,8 @@ class Styble_AI_Settings {
 			</script>
 			<hr />
 			<h2>How to use</h2>
-			<ol>
-				<li>Pick a provider, paste that provider's key, save.</li>
-				<li>Edit any page or post.</li>
-				<li>Open the <strong>Styble AI</strong> panel from the top-right plugin menu (star icon).</li>
-				<li>Describe a section (e.g. “a hero for a coffee roaster with a headline, one line of copy, and two buttons”) and click <strong>Generate</strong>.</li>
-			</ol>
+			<p><strong>A whole page — Styble AI &rarr; AI Chat.</strong> Ask for a page (“a pricing page with three plans”). It plans the sections, builds them one by one into a new draft page, and previews the result as you go. Follow-up messages revise that same page.</p>
+			<p><strong>One section — the editor sidebar.</strong> Edit any page or post, open the <strong>Styble AI</strong> panel from the top-right plugin menu (star icon), describe a section, and click <strong>Generate</strong>. Selecting a block and using ✦ <strong>Edit with AI</strong> in its toolbar rewrites just that block.</p>
 		</div>
 		<?php
 	}

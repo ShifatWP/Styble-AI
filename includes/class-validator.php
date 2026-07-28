@@ -423,7 +423,9 @@ class Styble_AI_Validator {
 			case 'string':
 				if ( ! is_string( $value ) ) {
 					$this->add_type_error( $path, $attr, 'a string', $value );
+					return;
 				}
+				$this->check_allowed_value( $attr, $value, $def, $path );
 				return;
 
 			case 'boolean':
@@ -455,6 +457,41 @@ class Styble_AI_Validator {
 			default:
 				// 'mixed' — no constraint recorded.
 		}
+	}
+
+	/**
+	 * An attribute the editor exposes as a fixed set of choices must hold one of
+	 * them.
+	 *
+	 * Type alone is not enough for these, and the gap is invisible: a model that
+	 * answers "contained" for containerWidth, "centre" for textAliment or "grid"
+	 * for layoutType has produced a perfectly good string, so nothing rejects it
+	 * and the block quietly falls back to its default. The page renders — just
+	 * not the page that was asked for. Only attributes whose value list was read
+	 * from Styble Pro AND verified against their own default carry `values`, so
+	 * this check never fires on a guess.
+	 *
+	 * @param string $attr  Attribute name.
+	 * @param string $value Supplied value.
+	 * @param array  $def   Catalog definition.
+	 * @param string $path  JSON path.
+	 *
+	 * @return void
+	 */
+	private function check_allowed_value( $attr, $value, $def, $path ) {
+		if ( empty( $def['values'] ) || ! is_array( $def['values'] ) ) {
+			return;
+		}
+		// Blank always means "leave it to the block".
+		if ( '' === $value || in_array( $value, $def['values'], true ) ) {
+			return;
+		}
+
+		$this->result->add(
+			'attr_value',
+			$path,
+			"\"{$attr}\" must be one of: " . implode( ', ', $def['values'] ) . "; got \"{$value}\"."
+		);
 	}
 
 	/**

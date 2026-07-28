@@ -36,6 +36,25 @@
 	var CONTAINER_BLOCK = 'styble/container';
 
 	/**
+	 * Padding applied to a section's outermost container when the model set none.
+	 *
+	 * sectionPadding is zero on all four sides in block.json, so leaving it unset
+	 * is not a neutral choice: the copy sits against the viewport edge and the
+	 * section sits flush against the one above it. The prompt asks for it; this
+	 * is the backstop for when the model does not comply.
+	 *
+	 * Kept in step with DEFAULT_SECTION_PADDING in includes/class-page-applier.php.
+	 */
+	var SECTION_PADDING = {
+		device: {
+			Desktop: { top: 80, right: 24, bottom: 80, left: 24 },
+			Tablet: { top: 64, right: 20, bottom: 64, left: 20 },
+			Mobile: { top: 48, right: 16, bottom: 48, left: 16 },
+		},
+		unit: { Desktop: 'px', Tablet: 'px', Mobile: 'px' },
+	};
+
+	/**
 	 * Layouts injected by PHP (wp_add_inline_script). Only the layout table is
 	 * shipped to the browser, not the whole catalog — it is all the applier needs,
 	 * since the tree was already validated server-side.
@@ -282,7 +301,27 @@
 		if ( ! tree || ! tree.root ) {
 			throw new Error( 'Styble AI: the response contained no block tree.' );
 		}
-		return [ buildNode( tree.root ) ];
+		return [ buildNode( withSectionPadding( tree.root ) ) ];
+	}
+
+	/**
+	 * Give a section's outermost container breathing room if the model did not.
+	 * Only the root: an 80px band on a nested container would be wrong.
+	 *
+	 * @param {Object} root Root node of a section.
+	 * @return {Object} The root, with sectionPadding guaranteed.
+	 */
+	function withSectionPadding( root ) {
+		if ( ! root || root.block !== CONTAINER_BLOCK ) {
+			return root;
+		}
+		var attrs = root.attrs || {};
+		if ( attrs.sectionPadding ) {
+			return root;
+		}
+		return Object.assign( {}, root, {
+			attrs: Object.assign( {}, attrs, { sectionPadding: SECTION_PADDING } ),
+		} );
 	}
 
 	window.stybleAI = window.stybleAI || {};

@@ -22,8 +22,10 @@ define( 'STYBLE_AI_DIR', plugin_dir_path( __FILE__ ) );
 define( 'STYBLE_AI_URL', plugin_dir_url( __FILE__ ) );
 
 // The pipeline: catalog -> prompt/tool schema -> provider -> validator ->
-// corrective retry -> tree -> (JS) applier. There is no serializer: Styble
-// blocks are dynamic, so the editor builds them with createBlock().
+// corrective retry -> tree -> applier. Two appliers, one contract:
+//   in the editor  assets/applier.js   createBlock() -> insertBlocks
+//   headless       class-page-applier  tree -> block markup -> a draft page
+// Neither writes block HTML from the model; the tree is validated first.
 require_once STYBLE_AI_DIR . 'includes/class-catalog.php';
 require_once STYBLE_AI_DIR . 'includes/class-brand-context.php';
 require_once STYBLE_AI_DIR . 'includes/class-prompt.php';
@@ -31,16 +33,24 @@ require_once STYBLE_AI_DIR . 'includes/class-validation-result.php';
 require_once STYBLE_AI_DIR . 'includes/class-validator.php';
 require_once STYBLE_AI_DIR . 'includes/class-anthropic-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-openai-compatible-provider.php';
+require_once STYBLE_AI_DIR . 'includes/class-provider-factory.php';
 require_once STYBLE_AI_DIR . 'includes/class-generator.php';
+require_once STYBLE_AI_DIR . 'includes/class-page-applier.php';
+require_once STYBLE_AI_DIR . 'includes/class-page-planner.php';
+require_once STYBLE_AI_DIR . 'includes/class-page-store.php';
 require_once STYBLE_AI_DIR . 'includes/class-rest-controller.php';
+require_once STYBLE_AI_DIR . 'includes/class-chat-controller.php';
+require_once STYBLE_AI_DIR . 'includes/class-chat-page.php';
 require_once STYBLE_AI_DIR . 'includes/class-settings.php';
 
 /**
  * Boot the plugin.
  */
 function styble_ai_boot() {
+	( new Styble_AI_Chat_Page() )->register();
 	( new Styble_AI_Settings() )->register();
 	( new Styble_AI_REST_Controller() )->register();
+	( new Styble_AI_Chat_Controller() )->register();
 	add_action( 'enqueue_block_editor_assets', 'styble_ai_enqueue_editor_assets' );
 }
 add_action( 'plugins_loaded', 'styble_ai_boot' );
@@ -94,9 +104,9 @@ function styble_ai_admin_notice() {
 		return;
 	}
 	$screen = get_current_screen();
-	if ( $screen && 'settings_page_styble-ai' === $screen->id ) {
+	if ( $screen && Styble_AI_Settings::hook_suffix() === $screen->id ) {
 		return;
 	}
-	echo '<div class="notice notice-info is-dismissible"><p><strong>Styble AI:</strong> pick a provider and add an API key under <a href="' . esc_url( admin_url( 'options-general.php?page=styble-ai' ) ) . '">Settings &rarr; Styble AI</a> to start generating. No Anthropic credits? Gemini 2.0 Flash is free and handles the nested layout schema.</p></div>';
+	echo '<div class="notice notice-info is-dismissible"><p><strong>Styble AI:</strong> pick a provider and add an API key under <a href="' . esc_url( admin_url( 'admin.php?page=' . Styble_AI_Settings::SLUG ) ) . '">Styble AI &rarr; Settings</a> to start generating. No Anthropic credits? Gemini 2.0 Flash is free and handles the nested layout schema.</p></div>';
 }
 add_action( 'admin_notices', 'styble_ai_admin_notice' );

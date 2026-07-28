@@ -95,7 +95,7 @@ class Styble_AI_REST_Controller {
 			);
 		}
 
-		$generator = new Styble_AI_Generator( $catalog, $this->make_provider() );
+		$generator = new Styble_AI_Generator( $catalog, Styble_AI_Provider_Factory::make() );
 
 		$result = ( '' !== $selection )
 			? $generator->edit( $prompt, $selection )
@@ -144,34 +144,5 @@ class Styble_AI_REST_Controller {
 			$value = substr( $value, 0, $max );
 		}
 		return $value;
-	}
-
-	/**
-	 * Build the configured provider. "anthropic" uses the native Messages API;
-	 * every other id is an OpenAI-compatible chat/completions endpoint (Groq,
-	 * Cerebras, OpenRouter, DeepSeek, Mistral, Together, Gemini, or a custom
-	 * base URL).
-	 */
-	private function make_provider() {
-		$provider = get_option( 'styble_ai_provider', 'anthropic' );
-		$api_key  = get_option( 'styble_ai_api_key', '' );
-		$model    = get_option( 'styble_ai_model', '' );
-
-		if ( 'anthropic' === $provider ) {
-			return new Styble_AI_Anthropic_Provider( $api_key, $model ? $model : 'claude-opus-5' );
-		}
-
-		$presets  = Styble_AI_OpenAI_Compatible_Provider::presets();
-		$endpoint = '';
-		if ( 'custom' === $provider ) {
-			$endpoint = get_option( 'styble_ai_base_url', '' );
-		} elseif ( isset( $presets[ $provider ] ) ) {
-			$endpoint = $presets[ $provider ]['endpoint'];
-			if ( '' === $model && ! empty( $presets[ $provider ]['model'] ) ) {
-				$model = $presets[ $provider ]['model'];
-			}
-		}
-
-		return new Styble_AI_OpenAI_Compatible_Provider( $api_key, $model, $endpoint );
 	}
 }

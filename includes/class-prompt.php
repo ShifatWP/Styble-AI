@@ -38,6 +38,14 @@ class Styble_AI_Prompt {
 	 * How deep the generated node schema nests. Deep enough for the deepest
 	 * legal Styble tree (container > column > info-box > advanced-text >
 	 * icon-picker) with room to spare.
+	 *
+	 * The node schema is expanded, not referenced, so everything in it — the
+	 * block enum and the attribute enums — is repeated at every level. That puts
+	 * the tool schema around 3.5k tokens. `$defs`/`$ref` would collapse it to
+	 * one copy, and is deliberately not used: this plugin talks to nine
+	 * different OpenAI-compatible endpoints, and a `$ref` that one of them will
+	 * not resolve breaks generation outright, which is a far worse trade than
+	 * the tokens.
 	 */
 	const SCHEMA_DEPTH = 6;
 
@@ -125,8 +133,17 @@ class Styble_AI_Prompt {
 				'description' => 'Styble block name.',
 			),
 			'attrs' => array(
-				'type'        => 'object',
-				'description' => 'Sparse attributes. Only the keys listed for this block in the system prompt are legal; omit anything you do not mean to change.',
+				'type'                 => 'object',
+				'description'          => 'Sparse attributes. Only the keys listed for this block in the system prompt are legal; omit anything you do not mean to change.',
+				// The fixed-choice attributes are spelled out here as well as in
+				// the prompt. Type alone does not constrain them, and an invented
+				// value ("contained", "centre", "grid") is a legal string, so
+				// without this the provider has no way to stop one.
+				'properties'           => $this->enum_properties(),
+				// True, not false: the properties below are the enums only, not
+				// the whole vocabulary. Unknown keys are caught by the validator,
+				// which can say which block they were wrong for.
+				'additionalProperties' => true,
 			),
 		);
 
@@ -144,6 +161,50 @@ class Styble_AI_Prompt {
 			'required'             => array( 'block' ),
 			'additionalProperties' => false,
 		);
+	}
+
+	/**
+	 * Every fixed-choice attribute in the allowlist, as JSON Schema enums.
+	 *
+	 * The union across blocks, because `attrs` is one object in the node schema
+	 * and the schema cannot know which block it belongs to. That makes this a
+	 * hint, not enforcement: it stops values no block accepts, while the
+	 * validator still catches a value that is legal on some other block
+	 * (`layoutType` is layout1..layout4 on info-box but style-one..style-three
+	 * on icon-list).
+	 *
+	 * @return array
+	 */
+	private function enum_properties() {
+		$union = array();
+
+		foreach ( $this->catalog->allowlisted_names() as $name ) {
+			$owned = isset( self::APPLIER_OWNED[ $name ] ) ? self::APPLIER_OWNED[ $name ] : array();
+
+			foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
+				if ( in_array( $attr, $owned, true ) || empty( $def['values'] ) ) {
+					continue;
+				}
+				$existing       = isset( $union[ $attr ] ) ? $union[ $attr ] : array();
+				$union[ $attr ] = array_values( array_unique( array_merge( $existing, $def['values'] ) ) );
+			}
+		}
+
+		// `layout` has no value list in the catalog — its choices are the layout
+		// table, not an inspector control — but it is the attribute a wrong
+		// value breaks most visibly, so it is enumerated here too.
+		$union['layout'] = $this->catalog->layout_ids();
+
+		$properties = array();
+		foreach ( $union as $attr => $values ) {
+			$properties[ $attr ] = array(
+				'type' => 'string',
+				'enum' => $values,
+			);
+		}
+		ksort( $properties );
+
+		return $properties;
 	}
 
 	/**
@@ -181,11 +242,25 @@ class Styble_AI_Prompt {
 				'- Emit a single root block. A hero, a features row, a CTA — one section per call.',
 				'- Set attributes sparsely. Omit anything you are not deliberately changing; every block fills its own defaults.',
 				'- Only the attribute keys listed for a block below are legal. Any other key is rejected.',
-				'- Attributes tagged (responsive), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
+				'- An attribute written `name (a|b|c)` takes exactly one of those values. Anything else is rejected.',
+				'- Attributes tagged (responsive), (responsive box), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
 				'- Write real, specific, publishable copy. Never lorem ipsum, never "Your text here".',
 				'- Images are placeholders: set imgAltText describing the intended photo, and never invent a URL or attachment id.',
 				'- A styble/container holds only styble/column children (or nested containers). Content goes inside the columns.',
-				'- Pick the container\'s `layout` and give it that many columns. Everything else about the grid — column widths, column count, direction, wrapping — is computed for you, and uniqueId is never yours to set.',
+				'',
+				'## Choosing the layout',
+				'',
+				'- **Prefer to omit `layout`.** Give the container the styble/column children you want and the right equal-width layout is applied for you. Only set `layout` when you specifically want an UNEQUAL split, e.g. `l-2-60-40` for text beside an image.',
+				'- If you do set `layout`, the number of styble/column children must equal that layout\'s column count EXACTLY, or the whole section is rejected. Check the count in the layout list below — `l-mr-3x2` is six columns, not three.',
+				'- Column widths, column count, direction and wrapping are computed for you. Never set them, and never set uniqueId.',
+				'',
+				'## Spacing (this is what makes a section look finished)',
+				'',
+				'- **Always set `sectionPadding` on the section\'s outermost container.** It defaults to zero on all four sides, so a section without it has its text jammed against the edge of the screen and against the section above. A normal band is 80px top and bottom, 24px left and right on Desktop, and 48/16 on Mobile.',
+				'- Use `horizontalGap` / `verticalGap` for the space BETWEEN columns, not padding.',
+				'',
+				'## Size',
+				'',
 				'- Keep it proportionate: at most 6 columns per container and 8 blocks per column.',
 			)
 		);
@@ -210,6 +285,13 @@ class Styble_AI_Prompt {
 				if ( in_array( $attr, $owned, true ) ) {
 					continue;
 				}
+				// A verified value list beats a type tag: "left|center|right"
+				// tells the model everything, where "(string)" told it nothing
+				// and let it answer "centre".
+				if ( ! empty( $def['values'] ) ) {
+					$attrs[] = $attr . ' (' . implode( '|', $def['values'] ) . ')';
+					continue;
+				}
 				$tag     = self::attr_tag( $attr, $def );
 				$attrs[] = $tag ? $attr . ' (' . $tag . ')' : $attr;
 			}
@@ -231,7 +313,7 @@ class Styble_AI_Prompt {
 		}
 
 		$lines[] = '';
-		$lines[] = 'Content goes in these attributes: advanced-text uses advancedTextContent with textHTMLTag (h1..h4 for headings, p for body); advanced-button uses labelText and addLink; advanced-image uses imgAltText; info-box uses layoutType (layout1..layout4) and badgeText; icon-list-item uses listText; separator uses separatorText, and set separatorLabelEnable to false for a plain rule with no caption.';
+		$lines[] = 'Content goes in these attributes: advanced-text uses advancedTextContent, with textHTMLTag set to h1 for a page title, h2 or h3 for a section heading, and p for body copy; advanced-button uses labelText and addLink; advanced-image uses imgAltText; info-box needs layoutType set explicitly (it defaults to blank, which renders nothing) plus badgeText when showBadge is true; icon-list-item uses listText; separator uses separatorText, and set separatorLabelEnable to false for a plain rule with no caption.';
 
 		return implode( "\n", $lines );
 	}
@@ -291,7 +373,12 @@ class Styble_AI_Prompt {
 		}
 
 		if ( is_array( $default ) && isset( $default['device'] ) && array_key_exists( 'unit', $default ) ) {
-			return 'responsive';
+			// Two different responsive shapes share these keys. In one, a device
+			// bucket is a scalar (gap: 16); in the other it is a box of four
+			// sides (padding). Telling the model "responsive" for both is how it
+			// learns to send 16 where {top,right,bottom,left} is required.
+			$desktop = isset( $default['device']['Desktop'] ) ? $default['device']['Desktop'] : null;
+			return is_array( $desktop ) ? 'responsive box' : 'responsive';
 		}
 		if ( is_array( $default ) && array_key_exists( 'iconName', $default ) ) {
 			return 'icon';
@@ -314,6 +401,7 @@ class Styble_AI_Prompt {
 	 */
 	private function value_shapes() {
 		$responsive = null;
+		$box        = null;
 		$icon       = null;
 
 		foreach ( $this->catalog->allowlisted_names() as $name ) {
@@ -321,6 +409,9 @@ class Styble_AI_Prompt {
 				$tag = self::attr_tag( $attr, $def );
 				if ( 'responsive' === $tag && null === $responsive ) {
 					$responsive = $def['default'];
+				}
+				if ( 'responsive box' === $tag && null === $box ) {
+					$box = $def['default'];
 				}
 				if ( 'icon' === $tag && null === $icon ) {
 					$icon = $def['default'];
@@ -335,6 +426,37 @@ class Styble_AI_Prompt {
 			$lines[] = '';
 			$lines[] = '```json';
 			$lines[] = self::json( $responsive );
+			$lines[] = '```';
+			$lines[] = '';
+		}
+
+		if ( null !== $box ) {
+			$lines[] = '`(responsive box)` — the same `device`/`unit` wrapper, but each device holds FOUR SIDES, not a number. This is what `sectionPadding` takes. Tablet and Mobile may be omitted entirely to inherit Desktop.';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json(
+				array(
+					'device' => array(
+						'Desktop' => array(
+							'top'    => 80,
+							'right'  => 24,
+							'bottom' => 80,
+							'left'   => 24,
+						),
+						'Mobile'  => array(
+							'top'    => 48,
+							'right'  => 16,
+							'bottom' => 48,
+							'left'   => 16,
+						),
+					),
+					'unit'   => array(
+						'Desktop' => 'px',
+						'Tablet'  => 'px',
+						'Mobile'  => 'px',
+					),
+				)
+			);
 			$lines[] = '```';
 			$lines[] = '';
 		}

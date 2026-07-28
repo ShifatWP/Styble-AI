@@ -88,7 +88,7 @@ Step 2 — Pick a provider and get a key
     stick to a Llama 3.3 70B instruct model.
 
 Step 3 — Configure
-  1. Go to Settings -> Styble AI.
+  1. Go to Styble AI -> Settings in the admin menu.
   2. Choose your Provider from the dropdown.
   3. Paste that provider's API key (the "Get a key" link updates to match).
   4. Leave Model blank to use the provider's default (shown as the placeholder),
@@ -96,7 +96,22 @@ Step 3 — Configure
   5. (Custom provider only) enter the full chat/completions base URL.
   6. Save.
 
-Step 4 — Generate
+Step 4a — Generate a whole page (AI Chat)
+  1. Go to Styble AI -> AI Chat.
+  2. Describe the page: "Create a pricing page for a WordPress plugin with three
+     plans."
+  3. It plans the sections, then builds them one at a time. The checklist ticks
+     over as each lands and the preview on the right refreshes with it.
+  4. Keep chatting to revise the same page ("make the hero shorter", "add an
+     FAQ"). Only the sections that change are rebuilt.
+  5. The page is saved as a DRAFT. Open it in the block editor from the preview
+     toolbar. Nothing publishes automatically.
+
+  Note: one model call per section, so a 5-section page is 6 calls and takes a
+  couple of minutes on a slower provider. A section that fails gets a Retry
+  button rather than taking the page down with it.
+
+Step 4b — Generate one section (editor sidebar)
   1. Edit any page or post.
   2. Click the green wand icon at the top-right of the editor to open the sidebar.
   3. Describe a section (e.g. "a hero for a coffee roaster: headline, one line of
@@ -137,6 +152,7 @@ Step 5 — Test prompt (full small page)
   php scripts/generate-catalog.php    Regenerate the catalog from Styble Pro.
   php scripts/validate.php            Contract fixtures; asserts every error code.
   php scripts/test-generator.php      The retry loop, against a stub provider.
+  php scripts/test-page-applier.php   Headless layout maths, uniqueId, markup.
   php scripts/dump-prompt.php         Exactly what the model is told.
 
 == Files ==
@@ -150,10 +166,17 @@ Step 5 — Test prompt (full small page)
 * includes/class-anthropic-provider.php       Anthropic Messages API, forced tool_use.
 * includes/class-openai-compatible-provider.php  Groq/Cerebras/OpenRouter/DeepSeek/
                                               Mistral/Together/Gemini/custom.
+* includes/class-provider-factory.php         Settings -> the configured provider.
 * includes/class-rest-controller.php          /styble-ai/v1/generate; returns a tree.
+* includes/class-page-planner.php             Chat message -> ordered section briefs.
+* includes/class-page-applier.php             Headless: tree -> block markup + uniqueId.
+* includes/class-page-store.php               Plan/trees in post meta; rebuilds post_content.
+* includes/class-chat-controller.php          /chat/plan and /chat/section.
+* includes/class-chat-page.php                The AI Chat admin screen (top-level menu).
 * includes/class-settings.php                 Provider selector + key + model + base URL.
 * assets/applier.js                           Validated tree -> createBlock() blocks.
 * assets/editor.js                            Build-free sidebar (global wp.*, no JSX/webpack).
+* assets/chat.js, assets/chat.css             The chat screen: transcript + live preview.
 * docs/CONTRACT.md                            The emit_layout contract and its error codes.
 
 == Extending ==

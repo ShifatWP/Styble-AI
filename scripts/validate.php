@@ -231,6 +231,7 @@ $documented = array(
 	'attrs_not_object',
 	'attr_unknown',
 	'attr_type',
+	'attr_value',
 	'attr_shape',
 	'image_not_placeholder',
 	'layout_unknown',

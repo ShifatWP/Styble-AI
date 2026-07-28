@@ -511,7 +511,13 @@
                 },
                 "iconPosition": {
                     "type": "string",
-                    "default": "right"
+                    "default": "right",
+                    "values": [
+                        "right",
+                        "left",
+                        "top",
+                        "bottom"
+                    ]
                 },
                 "iconSize": {
                     "type": "object",
@@ -546,15 +552,23 @@
             "editable": {
                 "direction": {
                     "type": "string",
-                    "default": "row"
+                    "default": "row",
+                    "values": [
+                        "row",
+                        "column"
+                    ]
                 },
                 "justify": {
                     "type": "string",
-                    "default": "center"
-                },
-                "wrap": {
-                    "type": "string",
-                    "default": "wrap"
+                    "default": "center",
+                    "values": [
+                        "flex-start",
+                        "center",
+                        "flex-end",
+                        "space-between",
+                        "space-around",
+                        "space-evenly"
+                    ]
                 },
                 "gap": {
                     "type": "object",
@@ -600,7 +614,18 @@
                 },
                 "imgAspectRatio": {
                     "type": "string",
-                    "default": "original"
+                    "default": "original",
+                    "values": [
+                        "original",
+                        "1-1",
+                        "4-3",
+                        "3-4",
+                        "3-2",
+                        "2-3",
+                        "16-9",
+                        "9-16",
+                        "custom"
+                    ]
                 },
                 "imgAltText": {
                     "type": "string",
@@ -612,7 +637,13 @@
                 },
                 "imgResolution": {
                     "type": "string",
-                    "default": "large"
+                    "default": "large",
+                    "values": [
+                        "thumbnail",
+                        "medium",
+                        "large",
+                        "full"
+                    ]
                 }
             },
             "allowedChildren": [],
@@ -669,15 +700,38 @@
                 },
                 "textHTMLTag": {
                     "type": "string",
-                    "default": "p"
+                    "default": "p",
+                    "values": [
+                        "h1",
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "p"
+                    ]
                 },
                 "subHeadingHTMLTag": {
                     "type": "string",
-                    "default": "h4"
+                    "default": "h4",
+                    "values": [
+                        "h1",
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "p"
+                    ]
                 },
                 "textAliment": {
                     "type": "string",
-                    "default": "left"
+                    "default": "left",
+                    "values": [
+                        "left",
+                        "center",
+                        "right"
+                    ]
                 },
                 "subHeading": {
                     "type": "boolean",
@@ -765,6 +819,37 @@
             "acceptsChildren": true,
             "uniqueIdPrefix": "sp-styble-container-",
             "editable": {
+                "sectionPadding": {
+                    "type": "object",
+                    "default": {
+                        "device": {
+                            "Desktop": {
+                                "top": 0,
+                                "right": 0,
+                                "bottom": 0,
+                                "left": 0
+                            },
+                            "Tablet": {
+                                "top": "",
+                                "right": "",
+                                "bottom": "",
+                                "left": ""
+                            },
+                            "Mobile": {
+                                "top": "",
+                                "right": "",
+                                "bottom": "",
+                                "left": ""
+                            }
+                        },
+                        "unit": {
+                            "Desktop": "px",
+                            "Tablet": "px",
+                            "Mobile": "px"
+                        },
+                        "allChange": true
+                    }
+                },
                 "layoutSelected": {
                     "type": "boolean",
                     "default": false
@@ -779,7 +864,11 @@
                 },
                 "containerWidth": {
                     "type": "string",
-                    "default": "full"
+                    "default": "full",
+                    "values": [
+                        "full",
+                        "boxed"
+                    ]
                 },
                 "containerCustomWidth": {
                     "type": "object",
@@ -874,7 +963,12 @@
             "editable": {
                 "layoutType": {
                     "type": "string",
-                    "default": ""
+                    "default": "",
+                    "values": [
+                        "style-one",
+                        "style-two",
+                        "style-three"
+                    ]
                 },
                 "listGap": {
                     "type": "object",
@@ -893,15 +987,22 @@
                 },
                 "iconType": {
                     "type": "string",
-                    "default": "icon"
+                    "default": "icon",
+                    "values": [
+                        "icon",
+                        "ordered",
+                        "none"
+                    ]
                 },
                 "iconPosition": {
                     "type": "string",
-                    "default": "row"
-                },
-                "iconOrderedStyle": {
-                    "type": "string",
-                    "default": "decimal"
+                    "default": "row",
+                    "values": [
+                        "row",
+                        "row-reverse",
+                        "column",
+                        "column-reverse"
+                    ]
                 }
             },
             "allowedChildren": [
@@ -932,7 +1033,16 @@
                 },
                 "listTextTag": {
                     "type": "string",
-                    "default": "p"
+                    "default": "p",
+                    "values": [
+                        "h1",
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "p"
+                    ]
                 },
                 "addLink": {
                     "type": "string",
@@ -1024,19 +1134,22 @@
             "editable": {
                 "layoutType": {
                     "type": "string",
-                    "default": ""
-                },
-                "id": {
-                    "type": "number",
-                    "default": 1
-                },
-                "infoBoxPosition": {
-                    "type": "string",
-                    "default": "left"
+                    "default": "",
+                    "values": [
+                        "layout1",
+                        "layout2",
+                        "layout3",
+                        "layout4"
+                    ]
                 },
                 "contentAlign": {
                     "type": "string",
-                    "default": "center"
+                    "default": "center",
+                    "values": [
+                        "left",
+                        "center",
+                        "right"
+                    ]
                 },
                 "gapBetween": {
                     "type": "object",
@@ -1063,7 +1176,13 @@
                 },
                 "badgePosition": {
                     "type": "string",
-                    "default": "top-right"
+                    "default": "top-right",
+                    "values": [
+                        "top-right",
+                        "top-left",
+                        "bottom-right",
+                        "bottom-left"
+                    ]
                 }
             },
             "allowedChildren": [
@@ -1136,7 +1255,13 @@
             "editable": {
                 "separatorType": {
                     "type": "string",
-                    "default": "solid"
+                    "default": "solid",
+                    "values": [
+                        "solid",
+                        "dashed",
+                        "dotted",
+                        "double"
+                    ]
                 },
                 "separatorLabelEnable": {
                     "type": "boolean",

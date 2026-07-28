@@ -54,16 +54,30 @@ $all_blocks = array(
  * "List Item Text" (listText).
  */
 $editable = array(
-	'container'       => array( 'layout', 'layoutSelected', 'columns', 'direction', 'flexWrap', 'horizontalGap', 'verticalGap', 'containerWidth', 'containerCustomWidth' ),
+	// sectionPadding is not optional decoration: block.json defaults it to
+	// 0 on all four sides, so a section that never sets it renders with its
+	// copy flush against the viewport edge and flush against the section
+	// above. Every generated page looked broken until this was exposed.
+	// No 'align': it already defaults to "full", and full-bleed requires exactly
+	// that value, so the only thing exposing it can do is take it away.
+	'container'       => array( 'layout', 'layoutSelected', 'columns', 'direction', 'flexWrap', 'horizontalGap', 'verticalGap', 'containerWidth', 'containerCustomWidth', 'sectionPadding' ),
 	'column'          => array( 'columnWidth', 'columnFlex' ),
 	'advanced-text'   => array( 'advancedTextContent', 'textHTMLTag', 'subHeading', 'subHeadingContent', 'subHeadingHTMLTag', 'textAliment', 'advancedTextColor' ),
-	'advanced-buttons'=> array( 'direction', 'justify', 'gap', 'wrap', 'fullWidth' ),
+	// No 'wrap': advanced-buttons/dynamicCss.js hardcodes flex-wrap:wrap and
+	// never reads the attribute. Offering a knob that does nothing invites the
+	// model to "fix" a layout with it.
+	'advanced-buttons'=> array( 'direction', 'justify', 'gap', 'fullWidth' ),
 	'advanced-button' => array( 'labelText', 'showLabel', 'addLink', 'buttonIcon', 'iconPosition', 'iconSize' ),
 	'advanced-image'  => array( 'selectImage', 'selectImageId', 'imgAltText', 'imgAspectRatio', 'imgResolution', 'addLink' ),
-	'info-box'        => array( 'layoutType', 'id', 'infoBoxPosition', 'contentAlign', 'showBadge', 'badgeText', 'badgePosition', 'gapBetween' ),
+	// No 'id' (an internal number) and no 'infoBoxPosition' (declared in
+	// block.json, read by nothing in JS or PHP).
+	'info-box'        => array( 'layoutType', 'contentAlign', 'showBadge', 'badgeText', 'badgePosition', 'gapBetween' ),
 	'icon-picker'     => array( 'featuredIcon', 'iconColor', 'iconSize' ),
 	'separator'       => array( 'separatorType', 'separatorLabelEnable', 'separatorText', 'separatorIconEnable', 'separatorIcon' ),
-	'icon-list'       => array( 'layoutType', 'iconType', 'iconPosition', 'listGap', 'iconOrderedStyle' ),
+	// No 'iconOrderedStyle': its values are CSS counter styles (decimal,
+	// lower-roman…), which no inspector array records, so it would be the one
+	// string attribute the model could still invent a value for.
+	'icon-list'       => array( 'layoutType', 'iconType', 'iconPosition', 'listGap' ),
 	'icon-list-item'  => array( 'listText', 'listTextTag', 'listIcon', 'addLink' ),
 );
 
@@ -161,6 +175,117 @@ function read_unique_id_prefix( $styble_pro, $slug, $default_prefix ) {
 		}
 	}
 	return null;
+}
+
+/**
+ * Every JS source that can define an attribute's choices: the block's own files
+ * plus the shared control constants, which is where named option lists such as
+ * SeparatorTypes live.
+ *
+ * @param string $styble_pro Styble Pro root.
+ * @param string $slug       Block slug.
+ *
+ * @return string Concatenated source.
+ */
+function read_block_js( $styble_pro, $slug ) {
+	static $shared = null;
+	if ( null === $shared ) {
+		$file   = "{$styble_pro}/src/controls/constants.js";
+		$shared = is_file( $file ) ? file_get_contents( $file ) : '';
+	}
+
+	// Recursive: container keeps its inspector in panels/, so a flat glob finds
+	// the block but not the controls that define its choices.
+	$src  = '';
+	$root = "{$styble_pro}/src/blocks/{$slug}";
+	if ( is_dir( $root ) ) {
+		$walker = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) );
+		foreach ( $walker as $file ) {
+			if ( in_array( $file->getExtension(), array( 'js', 'jsx' ), true ) ) {
+				$src .= file_get_contents( $file->getPathname() ) . "\n";
+			}
+		}
+	}
+
+	return $src . "\n" . $shared;
+}
+
+/**
+ * Slice out the bracketed array that starts at $from.
+ *
+ * @param string $src  Source.
+ * @param int    $from Offset of the opening bracket.
+ *
+ * @return string The array literal, or '' when unbalanced.
+ */
+function slice_array_literal( $src, $from ) {
+	$depth = 0;
+	$len   = strlen( $src );
+	for ( $i = $from; $i < $len; $i++ ) {
+		if ( '[' === $src[ $i ] ) {
+			$depth++;
+		} elseif ( ']' === $src[ $i ] ) {
+			$depth--;
+			if ( 0 === $depth ) {
+				return substr( $src, $from, $i - $from + 1 );
+			}
+		}
+	}
+	return '';
+}
+
+/**
+ * The choices an attribute actually offers in the editor.
+ *
+ * Styble's inspector controls take `attributesKey="foo"` alongside an
+ * `items`/`options` array of `{ label, value }`, so the legal values for a
+ * select or button group are recoverable from source rather than transcribed
+ * here by hand. Named lists (`items={SeparatorTypes}`) are resolved against
+ * src/controls/constants.js.
+ *
+ * This is a heuristic — it takes the option array nearest the attributesKey —
+ * so the CALLER verifies the result against block.json's default. That check is
+ * not ceremony: it is what catches iconOrderedStyle, whose nearest array belongs
+ * to a neighbouring control and whose real values are CSS counter styles.
+ *
+ * @param string $src  Block JS.
+ * @param string $attr Attribute name.
+ *
+ * @return string[] Values, or [] when none could be read.
+ */
+function read_attr_values( $src, $attr ) {
+	$values  = array();
+	$pattern = '/attributesKey\s*=\s*\{?[\'"]' . preg_quote( $attr, '/' ) . '[\'"]\}?/';
+
+	if ( ! preg_match_all( $pattern, $src, $m, PREG_OFFSET_CAPTURE ) ) {
+		return array();
+	}
+
+	foreach ( $m[0] as $hit ) {
+		$tail = substr( $src, $hit[1], 2000 );
+
+		// items={[ … ]} / options={[ … ]} — an inline array.
+		if ( preg_match( '/(?:items|options)\s*=\s*\{\s*\[/', $tail, $am, PREG_OFFSET_CAPTURE ) ) {
+			$open    = strpos( $tail, '[', $am[0][1] );
+			$literal = slice_array_literal( $tail, $open );
+			if ( preg_match_all( '/value:\s*[\'"]([^\'"]*)[\'"]/', $literal, $vm ) ) {
+				$values = array_merge( $values, $vm[1] );
+				continue;
+			}
+		}
+
+		// items={SomeConstant} — resolve the named list.
+		if ( preg_match( '/(?:items|options)\s*=\s*\{\s*([A-Z][A-Za-z0-9_]*)\s*\}/', $tail, $cm )
+			&& preg_match( '/' . preg_quote( $cm[1], '/' ) . '\s*=\s*\[/', $src, $dm, PREG_OFFSET_CAPTURE ) ) {
+			$open    = strpos( $src, '[', $dm[0][1] );
+			$literal = slice_array_literal( $src, $open );
+			if ( preg_match_all( '/value:\s*[\'"]([^\'"]*)[\'"]/', $literal, $vm ) ) {
+				$values = array_merge( $values, $vm[1] );
+			}
+		}
+	}
+
+	return array_values( array_unique( $values ) );
 }
 
 /**
@@ -263,8 +388,9 @@ foreach ( $children_of as $p => $list ) {
 
 // --- Build per-block catalog --------------------------------------------------
 
-$missing = array();
-$blocks  = array();
+$missing    = array();
+$unverified = array();
+$blocks     = array();
 
 $uid_default = read_unique_id_default( $styble_pro );
 if ( null === $uid_default ) {
@@ -286,7 +412,8 @@ foreach ( $all_blocks as $slug ) {
 		$desc  = isset( $json['description'] ) ? $json['description'] : '';
 		$attrs = isset( $json['attributes'] ) ? $json['attributes'] : array();
 
-		$wanted = isset( $editable[ $slug ] ) ? $editable[ $slug ] : array();
+		$wanted   = isset( $editable[ $slug ] ) ? $editable[ $slug ] : array();
+		$block_js = $wanted ? read_block_js( $styble_pro, $slug ) : '';
 
 		// Iterate block.json, not the allowlist: the editor's serializer walks
 		// blockType.attributes in declaration order, so the PHP applier has to
@@ -306,6 +433,25 @@ foreach ( $all_blocks as $slug ) {
 			if ( isset( $schema['role'] ) ) {
 				$def['role'] = $schema['role'];
 			}
+
+			// The choices the editor offers, when they can be read AND verified.
+			// Without these the model invents plausible values ("contained",
+			// "centre", "grid") that are the right TYPE, so nothing rejects them
+			// and the block silently renders its fallback.
+			if ( 'string' === $def['type'] ) {
+				$values = read_attr_values( $block_js, $attr );
+				if ( $values ) {
+					$default = is_string( $def['default'] ) ? $def['default'] : '';
+					// A default outside its own option list means the wrong list
+					// was matched. Drop it: no enum is safe, a wrong enum is not.
+					if ( '' === $default || in_array( $default, $values, true ) ) {
+						$def['values'] = $values;
+					} else {
+						$unverified[] = "{$slug}.{$attr} (default \"{$default}\" is not among: " . implode( ', ', $values ) . ')';
+					}
+				}
+			}
+
 			$defs[ $attr ] = $def;
 		}
 
@@ -372,6 +518,25 @@ $allow_count = count( array_filter( $blocks, fn( $b ) => $b['aiAllowlist'] ) );
 fwrite( STDOUT, "Catalog written: {$out_file}\n" );
 fwrite( STDOUT, sprintf( "  blocks: %d total, %d in AI allowlist\n", count( $blocks ), $allow_count ) );
 fwrite( STDOUT, sprintf( "  layouts: %d\n", count( $catalog['layouts'] ) ) );
+
+$with_values = 0;
+foreach ( $blocks as $entry ) {
+	foreach ( $entry['editable'] as $def ) {
+		if ( isset( $def['values'] ) ) {
+			$with_values++;
+		}
+	}
+}
+fwrite( STDOUT, sprintf( "  attrs with verified value lists: %d\n", $with_values ) );
+
+// Not an error: an attribute whose options could not be matched keeps its free
+// string type, which is what the catalog said before value lists existed.
+if ( $unverified ) {
+	fwrite( STDOUT, "\nNOTE: value lists read but rejected by the default check (left unconstrained):\n" );
+	foreach ( $unverified as $u ) {
+		fwrite( STDOUT, "  - {$u}\n" );
+	}
+}
 
 if ( $missing ) {
 	fwrite( STDERR, "\nWARNING: editable attrs not found in block.json (fix the allowlist):\n" );
