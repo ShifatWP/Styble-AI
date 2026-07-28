@@ -95,10 +95,17 @@ check( $enum === $allow, 'the block enum is exactly the catalog allowlist' );
 // THE REGRESSION GUARD. See the file header.
 $attrs = $root_node['properties']['attrs'];
 check( 'object' === $attrs['type'], 'attrs is an object' );
+// Both extremes were measured and both fail: the full union puts textHTMLTag on
+// a container, and no properties at all makes a weak model return every attrs
+// empty. Only the content attributes belong here.
+$declared = array_keys( isset( $attrs['properties'] ) ? $attrs['properties'] : array() );
+sort( $declared );
 check(
-	! isset( $attrs['properties'] ),
-	'attrs declares NO properties — a union of every block\'s attributes tells the model that textHTMLTag is legal on a container'
+	array( 'advancedTextContent', 'imgAltText', 'labelText', 'listText', 'separatorText' ) === $declared,
+	'attrs declares exactly the content attributes, no styling: ' . implode( ', ', $declared )
 );
+$styling_leak = array_intersect( $declared, array( 'textHTMLTag', 'textAliment', 'containerWidth', 'layout', 'layoutType', 'sectionPadding' ) );
+check( ! $styling_leak, 'no styling attribute leaked into the schema' . ( $styling_leak ? ' — ' . implode( ', ', $styling_leak ) : '' ) );
 check(
 	! isset( $attrs['additionalProperties'] ) || true === $attrs['additionalProperties'],
 	'attrs does not close itself off — the validator reports unknown keys with a better message than the provider can'

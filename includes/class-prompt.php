@@ -132,24 +132,59 @@ class Styble_AI_Prompt {
 				'enum'        => array_values( $this->catalog->allowlisted_names() ),
 				'description' => 'Styble block name.',
 			),
-			// Deliberately free-form, after trying the alternative and measuring it.
+			// Content attributes only. All three options were measured against
+			// gemini-3.1-flash-lite, and all three fail on it:
 			//
-			// Listing the attribute vocabulary here as `properties` looks like an
-			// obvious improvement and is actively harmful: `attrs` is one object
-			// shared by every block in the tree, so the only list that fits is the
-			// UNION across all of them — which tells the model that textHTMLTag
-			// and subHeading are legal keys on a container. Gemini promptly put
-			// all four content attributes on the root container and every section
-			// of a page failed. The schema cannot express "this block's
-			// attributes" without a oneOf branch per block at every one of the six
-			// nesting levels, which is both enormous and the shape providers are
-			// worst at.
+			//   Full union (25 keys)  -> content attributes on the root container.
+			//   No properties at all  -> EVERY attrs empty, a perfectly nested
+			//                            tree of grey placeholders. `block` has an
+			//                            enum so it was always right; `attrs` had
+			//                            nothing to pattern-match so it was {}.
+			//   Content only (5 keys) -> labelText and separatorText on the root
+			//                            container.
 			//
-			// So the per-block vocabulary lives where it can be stated exactly —
-			// the system prompt — and the validator enforces it.
+			// The dilemma is structural: `attrs` is ONE object shared by every
+			// block in the tree, so any declaration is a union, and a weak model
+			// cannot map "which block am I on" to "which keys are legal". Only a
+			// oneOf branch per block at all six nesting levels expresses it
+			// properly, which is enormous and the shape providers handle worst.
+			//
+			// These five stay because they are the mandatory ones (CONTENT_ATTRS
+			// in the validator), they are what a section is actually made of, and
+			// a misplaced content attribute is a cheaper failure than no content
+			// anywhere — the validator names both precisely, so neither reaches
+			// the page. Styling stays out: optional, and where the union did its
+			// damage.
+			//
+			// NOT verified on a capable model. Both remaining failure modes are
+			// rejections rather than silent damage, so the choice between them is
+			// about which a strong model handles better, and that is untested.
 			'attrs' => array(
-				'type'        => 'object',
-				'description' => 'Sparse attributes for THIS block. Only the keys listed under this exact block name in the system prompt are legal — an attribute of a different block is rejected. Booleans are JSON true/false, never the strings "true"/"false". Omit anything you do not mean to change.',
+				'type'                 => 'object',
+				'description'          => 'Attributes for THIS block. The content attribute below is REQUIRED on any block that carries text or an image — an empty attrs on such a block is rejected. Other keys are legal only if listed under this exact block name in the system prompt. Booleans are JSON true/false, never "true". Styling attributes may be omitted.',
+				'properties'           => array(
+					'advancedTextContent' => array(
+						'type'        => 'string',
+						'description' => 'REQUIRED on styble/advanced-text. The heading or body copy itself.',
+					),
+					'imgAltText'          => array(
+						'type'        => 'string',
+						'description' => 'REQUIRED on styble/advanced-image. A concrete description of the wanted photograph, used verbatim as a stock photo search: "barista pouring latte art into a white cup".',
+					),
+					'labelText'           => array(
+						'type'        => 'string',
+						'description' => 'REQUIRED on styble/advanced-button. The button label.',
+					),
+					'listText'            => array(
+						'type'        => 'string',
+						'description' => 'REQUIRED on styble/icon-list-item. The list item text.',
+					),
+					'separatorText'       => array(
+						'type'        => 'string',
+						'description' => 'The separator caption. Set separatorLabelEnable to false instead for a plain rule.',
+					),
+				),
+				'additionalProperties' => true,
 			),
 		);
 
@@ -199,17 +234,23 @@ class Styble_AI_Prompt {
 			array(
 				'You design page sections for Styble, a WordPress block builder. Turn the request into ONE section and return it by calling the ' . self::TOOL_NAME . ' tool. Always call the tool; never reply with prose or markup.',
 				'',
+				'# Content is mandatory. Styling is optional.',
+				'',
+				'Read this before anything else — it is the distinction that matters most.',
+				'',
+				'- **Write the content attribute of every block you emit.** advanced-text needs `advancedTextContent`. advanced-image needs `imgAltText`. advanced-button needs `labelText`. icon-list-item needs `listText`. A block missing its content is REJECTED, because it would render a grey "Enter your text...." placeholder — worse than nothing.',
+				'- `"attrs": {}` on a block that carries text or an image is not a minimal answer, it is an empty page. A tree of correctly-nested empty blocks is a FAILURE, not a clean skeleton.',
+				'- Write real, specific, publishable copy: actual names, actual numbers, actual claims. Never lorem ipsum, never "Your text here".',
+				'- **Styling** attributes are the optional ones — spacing, alignment, colour, gaps, icon sizes. Omit those unless you mean to change them; every block has sensible defaults for them.',
+				'',
 				'# Rules',
 				'',
 				'- Emit a single root block. A hero, a features row, a CTA — one section per call.',
-				'- Set attributes sparsely. Omit anything you are not deliberately changing; every block fills its own defaults.',
 				'- **Attributes belong to their own block.** Each block below lists its own keys, and only those are legal ON THAT BLOCK. `textHTMLTag` and `subHeading` belong to styble/advanced-text; putting them on a styble/container is rejected, because a container holds columns and has no text of its own. If you want a heading, add a styble/advanced-text block — do not describe it with an attribute.',
 				'- An attribute written `name (a|b|c)` takes exactly one of those values. Anything else is rejected.',
 				'- An attribute written `name (true/false)` takes a JSON boolean: `true`, not `"true"`. A quoted string is rejected.',
 				'- Object-valued attributes are real JSON objects, not strings. `{"device":{"Desktop":16}}` is correct; `"{\\"device\\":{\\"Desktop\\":16}}"` is rejected. Never quote a `{`.',
-				'- **Every block must carry its content.** advanced-text needs advancedTextContent, advanced-image needs imgAltText, advanced-button needs labelText, icon-list-item needs listText. An empty or omitted one is rejected, because the block would render a grey "Enter your text...." placeholder instead.',
 				'- Attributes tagged (responsive), (responsive box), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
-				'- Write real, specific, publishable copy. Never lorem ipsum, never "Your text here".',
 				'- Never invent an image URL or attachment id. Describe the photograph you want in `imgAltText` instead — that description is used verbatim to search a stock photo library, so write it as a subject, not a caption: "barista pouring latte art into a white cup", not "Our coffee". Two to eight concrete words, no brand names, no text-in-image, no people by name.',
 				'- A styble/container holds only styble/column children (or nested containers). Content goes inside the columns.',
 				'',
