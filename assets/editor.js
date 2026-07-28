@@ -53,6 +53,24 @@
 		return blocks;
 	}
 
+	// Stock photo filling is best-effort and never fails a generation, which is
+	// exactly why it has to be reported: a section that quietly came back with
+	// blank images looks identical to one where the feature is switched off.
+	// Returns { count, warnings } — count 0 with no warnings means image filling
+	// is not configured, and says nothing.
+	function imageReport( res ) {
+		return {
+			count: ( res && res.imagesFilled ) || 0,
+			warnings: ( res && res.imageWarnings ) || []
+		};
+	}
+
+	function photoText( count ) {
+		return 1 === count
+			? __( '1 photo added from your stock library.', 'styble-ai' )
+			: count + ' ' + __( 'photos added from your stock library.', 'styble-ai' );
+	}
+
 	// Never fail silently: when the tree was rejected, the server sends the
 	// validator's per-error path + message, and those are the only thing that
 	// makes a bad prompt or a too-narrow allowlist diagnosable.
@@ -212,6 +230,9 @@
 		'.sai-pop-head{display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;color:#1e1e1e;margin:0 0 10px}' +
 		'.sai-pop .sai-ta{min-height:68px}' +
 		'.sai-pop-err{color:#b32d2e;font-size:12px;line-height:1.4;margin:8px 0 0}' +
+		'.sai-pop-warn{margin:9px 0 0;padding:8px 10px;border:1px solid #f0d48a;background:#fdf6e3;border-radius:6px;font-size:11.5px;line-height:1.5;color:#7a5c00}' +
+		'.sai-pop-warn ul{margin:4px 0 0;padding-left:16px;list-style:disc}' +
+		'.sai-notice-list{margin:6px 0 0;padding-left:16px;list-style:disc;font-size:11.5px;line-height:1.5}' +
 		'.sai-pop-actions{margin-top:10px}' +
 		'.sai-quick-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}' +
 		'.sai-quick{padding:5px 11px;border-radius:999px;border:1px solid #d5d7db;background:#fff;color:#3c434a;font-size:11.5px;cursor:pointer;transition:all .12s}' +
@@ -261,6 +282,10 @@
 		var err = errState[ 0 ];
 		var setErr = errState[ 1 ];
 
+		var warnState = useState( null );
+		var warn = warnState[ 0 ];
+		var setWarn = warnState[ 1 ];
+
 		function apply() {
 			if ( ! val.trim() ) {
 				setErr( __( 'Describe the change first.', 'styble-ai' ) );
@@ -276,6 +301,7 @@
 			var selectionMarkup = wp.blocks.serialize( [ block ] );
 			setBusy( true );
 			setErr( null );
+			setWarn( null );
 
 			apiFetch( {
 				path: '/styble-ai/v1/generate',
@@ -292,6 +318,15 @@
 						return;
 					}
 					wp.data.dispatch( 'core/block-editor' ).replaceBlocks( props.clientId, newBlocks );
+
+					// The block is already replaced either way. Stay open when a
+					// stock photo could not be fetched, because closing is the one
+					// thing that would make that silent.
+					var img = imageReport( res );
+					if ( img.warnings.length ) {
+						setWarn( img.warnings );
+						return;
+					}
 					if ( props.onClose ) {
 						props.onClose();
 					}
@@ -326,6 +361,14 @@
 				} )
 			),
 			err ? el( 'p', { className: 'sai-pop-err' }, err ) : null,
+			warn
+				? el( 'div', { className: 'sai-pop-warn' },
+					el( 'strong', {}, __( 'Applied, but the images are still blank:', 'styble-ai' ) ),
+					el( 'ul', {}, warn.map( function ( w, i ) {
+						return el( 'li', { key: i }, w );
+					} ) )
+				)
+				: null,
 			el( 'div', { className: 'sai-pop-actions' },
 				el( 'button', {
 					type: 'button',
@@ -459,11 +502,22 @@
 		function insertTree( res ) {
 			var blocks = buildBlocksFrom( res );
 			wp.data.dispatch( 'core/block-editor' ).insertBlocks( blocks );
+
+			var text = ( res.attempts > 1 )
+				? __( 'Section inserted (the first attempt was rejected and regenerated).', 'styble-ai' )
+				: __( 'Section inserted.', 'styble-ai' );
+
+			var img = imageReport( res );
+			if ( img.count ) {
+				text += ' ' + photoText( img.count );
+			}
+
+			// A warning is not a failure — the section is already in the editor.
+			// It is a "your images are blank and here is why".
 			setNotice( {
-				type: 'success',
-				text: ( res.attempts > 1 )
-					? __( 'Section inserted (the first attempt was rejected and regenerated).', 'styble-ai' )
-					: __( 'Section inserted.', 'styble-ai' )
+				type: img.warnings.length ? 'warning' : 'success',
+				text: text,
+				details: img.warnings
 			} );
 		}
 
@@ -629,7 +683,16 @@
 						status: notice.type,
 						isDismissible: true,
 						onRemove: function () { setNotice( null ); }
-					}, notice.text )
+					},
+						el( 'span', {}, notice.text ),
+						notice.details && notice.details.length
+							? el( 'ul', { className: 'sai-notice-list' },
+								notice.details.map( function ( d, i ) {
+									return el( 'li', { key: i }, d );
+								} )
+							)
+							: null
+					)
 				)
 			);
 		}

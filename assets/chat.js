@@ -189,6 +189,13 @@
 					// validator's per-error path and message; show them.
 					'failed' === state && s.error
 						? el( 'p', { className: 'sac-section-error' }, s.error )
+						: null,
+					// A built section whose photos could not be fetched. Amber, not
+					// red: the section itself is fine and already on the page.
+					'built' === state && s.imageWarnings && s.imageWarnings.length
+						? el( 'p', { className: 'sac-section-warn' },
+							__( 'Images left blank — ', 'styble-ai' ) + s.imageWarnings.join( ' · ' )
+						)
 						: null
 				);
 			} )
@@ -292,12 +299,25 @@
 					patchPlan( planId, function ( m ) {
 						m.sections = m.sections.map( function ( s ) {
 							return s.id === sectionId
-								? Object.assign( {}, s, { built: true, failed: false, error: null } )
+								? Object.assign( {}, s, {
+									built: true,
+									failed: false,
+									error: null,
+									// Stock photo filling never fails a section, so
+									// the only way the user learns their images came
+									// back blank is if we say so here.
+									images: res.imagesFilled || 0,
+									imageWarnings: res.imageWarnings || []
+								} )
 								: s;
 						} );
 					} );
 					refresh();
-					return true;
+					return {
+						ok: true,
+						images: res.imagesFilled || 0,
+						blank: ( res.imageWarnings || [] ).length ? 1 : 0
+					};
 				} )
 				.catch( function ( err ) {
 					patchPlan( planId, function ( m ) {
@@ -307,27 +327,43 @@
 								: s;
 						} );
 					} );
-					return false;
+					return { ok: false, images: 0, blank: 0 };
 				} );
 		}
 
 		// Sequential on purpose: the providers rate-limit, and a half-built page
 		// with three sections out of order is worse than a slower honest one.
 		function buildAll( pageId, ids, planId ) {
-			var failures = 0;
+			var tally = { failures: 0, photos: 0, blanks: 0 };
 
 			return ids.reduce( function ( chain, id ) {
 				return chain.then( function () {
-					return buildSection( pageId, id, planId ).then( function ( ok ) {
-						if ( ! ok ) {
-							failures++;
-						}
+					return buildSection( pageId, id, planId ).then( function ( r ) {
+						tally.failures += r.ok ? 0 : 1;
+						tally.photos += r.images;
+						tally.blanks += r.blank;
 					} );
 				} );
 			}, Promise.resolve() ).then( function () {
 				setActive( null );
-				return failures;
+				return tally;
 			} );
+		}
+
+		// Built from the tally buildAll accumulates, not from `messages` — the
+		// closure captured when the build started is stale by the time it ends.
+		function photoSummary( tally ) {
+			if ( ! tally.photos && ! tally.blanks ) {
+				return '';
+			}
+			var parts = [];
+			if ( tally.photos ) {
+				parts.push( tally.photos + ' ' + ( 1 === tally.photos ? __( 'photo added.', 'styble-ai' ) : __( 'photos added.', 'styble-ai' ) ) );
+			}
+			if ( tally.blanks ) {
+				parts.push( tally.blanks + ' ' + __( 'section(s) kept blank images — see above.', 'styble-ai' ) );
+			}
+			return ' ' + parts.join( ' ' );
 		}
 
 		function retry( sectionId ) {
@@ -392,13 +428,14 @@
 						return;
 					}
 
-					return buildAll( res.pageId, pending, planId ).then( function ( failures ) {
+					return buildAll( res.pageId, pending, planId ).then( function ( tally ) {
 						setBusy( false );
 						push( {
 							role: 'assistant',
-							text: failures
-								? sprintfLike( __( 'Built the page, but %d section(s) failed. Retry them above, or tell me to rework them.', 'styble-ai' ), failures )
-								: __( 'Done — the draft is on the right. Tell me what to change, or open it in the editor.', 'styble-ai' ),
+							text: ( tally.failures
+								? sprintfLike( __( 'Built the page, but %d section(s) failed. Retry them above, or tell me to rework them.', 'styble-ai' ), tally.failures )
+								: __( 'Done — the draft is on the right. Tell me what to change, or open it in the editor.', 'styble-ai' )
+							) + photoSummary( tally ),
 							footer: __( 'The page is a draft. Nothing is published until you publish it.', 'styble-ai' )
 						} );
 					} );

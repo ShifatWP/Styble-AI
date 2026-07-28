@@ -246,6 +246,16 @@
 	word-break: break-word;
 }
 
+/* Amber, not red: the section is built and on the page — only its photos are
+   missing, and the page is still usable without them. */
+.sac-section-warn {
+	margin: 2px 0 8px 26px;
+	font-size: 11px;
+	line-height: 1.5;
+	color: #8a6100;
+	word-break: break-word;
+}
+
 .sac-section-mark {
 	flex: 0 0 auto;
 	width: 18px;
