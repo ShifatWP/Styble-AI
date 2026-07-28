@@ -153,6 +153,7 @@ Step 5 — Test prompt (full small page)
   php scripts/validate.php            Contract fixtures; asserts every error code.
   php scripts/test-generator.php      The retry loop, against a stub provider.
   php scripts/test-page-applier.php   Headless layout maths, uniqueId, markup.
+  php scripts/test-prompt.php         Prompt + tool schema invariants.
   php scripts/dump-prompt.php         Exactly what the model is told.
 
 == Files ==

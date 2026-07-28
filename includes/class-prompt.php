@@ -39,13 +39,13 @@ class Styble_AI_Prompt {
 	 * legal Styble tree (container > column > info-box > advanced-text >
 	 * icon-picker) with room to spare.
 	 *
-	 * The node schema is expanded, not referenced, so everything in it — the
-	 * block enum and the attribute enums — is repeated at every level. That puts
-	 * the tool schema around 3.5k tokens. `$defs`/`$ref` would collapse it to
-	 * one copy, and is deliberately not used: this plugin talks to nine
-	 * different OpenAI-compatible endpoints, and a `$ref` that one of them will
-	 * not resolve breaks generation outright, which is a far worse trade than
-	 * the tokens.
+	 * The node schema is expanded, not referenced, so everything in it repeats at
+	 * every level. Keeping `attrs` free-form is therefore worth six times what it
+	 * looks like: the one experiment that put the attribute vocabulary in here
+	 * cost ~2.7k tokens AND caused the failure documented on `attrs` below.
+	 * `$defs`/`$ref` would collapse the duplication, and is deliberately not
+	 * used: this plugin talks to nine different OpenAI-compatible endpoints, and
+	 * a `$ref` one of them will not resolve breaks generation outright.
 	 */
 	const SCHEMA_DEPTH = 6;
 
@@ -132,18 +132,24 @@ class Styble_AI_Prompt {
 				'enum'        => array_values( $this->catalog->allowlisted_names() ),
 				'description' => 'Styble block name.',
 			),
+			// Deliberately free-form, after trying the alternative and measuring it.
+			//
+			// Listing the attribute vocabulary here as `properties` looks like an
+			// obvious improvement and is actively harmful: `attrs` is one object
+			// shared by every block in the tree, so the only list that fits is the
+			// UNION across all of them — which tells the model that textHTMLTag
+			// and subHeading are legal keys on a container. Gemini promptly put
+			// all four content attributes on the root container and every section
+			// of a page failed. The schema cannot express "this block's
+			// attributes" without a oneOf branch per block at every one of the six
+			// nesting levels, which is both enormous and the shape providers are
+			// worst at.
+			//
+			// So the per-block vocabulary lives where it can be stated exactly —
+			// the system prompt — and the validator enforces it.
 			'attrs' => array(
-				'type'                 => 'object',
-				'description'          => 'Sparse attributes. Only the keys listed for this block in the system prompt are legal; omit anything you do not mean to change.',
-				// The constrained attributes are spelled out here as well as in
-				// the prompt, because neither the prompt nor a bare `type: object`
-				// can stop the two things models actually get wrong: an invented
-				// enum value, and a boolean sent as the string "true".
-				'properties'           => $this->attr_properties(),
-				// True, not false: the properties below are the enums only, not
-				// the whole vocabulary. Unknown keys are caught by the validator,
-				// which can say which block they were wrong for.
-				'additionalProperties' => true,
+				'type'        => 'object',
+				'description' => 'Sparse attributes for THIS block. Only the keys listed under this exact block name in the system prompt are legal — an attribute of a different block is rejected. Booleans are JSON true/false, never the strings "true"/"false". Omit anything you do not mean to change.',
 			),
 		);
 
@@ -161,79 +167,6 @@ class Styble_AI_Prompt {
 			'required'             => array( 'block' ),
 			'additionalProperties' => false,
 		);
-	}
-
-	/**
-	 * The attributes worth declaring in the tool schema, as JSON Schema types.
-	 *
-	 * Two kinds, and both were learned the hard way:
-	 *
-	 *  - **Fixed-choice strings**, as enums. An invented value ("contained",
-	 *    "centre", "grid") is a perfectly good string, so nothing but an enum
-	 *    stops one.
-	 *  - **Booleans.** Measured, not guessed: llama-3.3-70b returned `"true"`
-	 *    and `"false"` as strings for `subHeading`, `fullWidth` and `showLabel`
-	 *    in a single tree, and every section of a six-section page failed on it.
-	 *    A bare `type: object` for `attrs` gave the provider nothing to enforce.
-	 *
-	 * The union across blocks, because `attrs` is one object in the node schema
-	 * and the schema cannot know which block it belongs to. That makes this a
-	 * hint, not enforcement: it stops values no block accepts, while the
-	 * validator still catches a value that is legal on some other block
-	 * (`layoutType` is layout1..layout4 on info-box but style-one..style-three
-	 * on icon-list).
-	 *
-	 * Deliberately NOT exhaustive. Free strings need no schema help, objects are
-	 * described far better by the prompt's worked examples, and every entry here
-	 * is repeated at all six nesting levels — so this carries only the two types
-	 * with a demonstrated failure mode.
-	 *
-	 * @return array
-	 */
-	private function attr_properties() {
-		$enums    = array();
-		$booleans = array();
-
-		foreach ( $this->catalog->allowlisted_names() as $name ) {
-			$owned = isset( self::APPLIER_OWNED[ $name ] ) ? self::APPLIER_OWNED[ $name ] : array();
-
-			foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
-				if ( in_array( $attr, $owned, true ) ) {
-					continue;
-				}
-				if ( ! empty( $def['values'] ) ) {
-					$existing       = isset( $enums[ $attr ] ) ? $enums[ $attr ] : array();
-					$enums[ $attr ] = array_values( array_unique( array_merge( $existing, $def['values'] ) ) );
-					continue;
-				}
-				if ( isset( $def['type'] ) && 'boolean' === $def['type'] ) {
-					$booleans[ $attr ] = true;
-				}
-			}
-		}
-
-		// `layout` has no value list in the catalog — its choices are the layout
-		// table, not an inspector control — but it is the attribute a wrong
-		// value breaks most visibly, so it is enumerated here too.
-		$enums['layout'] = $this->catalog->layout_ids();
-
-		$properties = array();
-		foreach ( $enums as $attr => $values ) {
-			$properties[ $attr ] = array(
-				'type' => 'string',
-				'enum' => $values,
-			);
-		}
-		foreach ( array_keys( $booleans ) as $attr ) {
-			// selectImageId is excluded by construction: block.json calls it a
-			// number, but the contract requires the empty string so the user
-			// picks the media. Declaring the block.json type would invite the one
-			// value the validator rejects.
-			$properties[ $attr ] = array( 'type' => 'boolean' );
-		}
-		ksort( $properties );
-
-		return $properties;
 	}
 
 	/**
@@ -270,8 +203,9 @@ class Styble_AI_Prompt {
 				'',
 				'- Emit a single root block. A hero, a features row, a CTA — one section per call.',
 				'- Set attributes sparsely. Omit anything you are not deliberately changing; every block fills its own defaults.',
-				'- Only the attribute keys listed for a block below are legal. Any other key is rejected.',
+				'- **Attributes belong to their own block.** Each block below lists its own keys, and only those are legal ON THAT BLOCK. `textHTMLTag` and `subHeading` belong to styble/advanced-text; putting them on a styble/container is rejected, because a container holds columns and has no text of its own. If you want a heading, add a styble/advanced-text block — do not describe it with an attribute.',
 				'- An attribute written `name (a|b|c)` takes exactly one of those values. Anything else is rejected.',
+				'- An attribute written `name (true/false)` takes a JSON boolean: `true`, not `"true"`. A quoted string is rejected.',
 				'- Attributes tagged (responsive), (responsive box), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
 				'- Write real, specific, publishable copy. Never lorem ipsum, never "Your text here".',
 				'- Images are placeholders: set imgAltText describing the intended photo, and never invent a URL or attachment id.',
