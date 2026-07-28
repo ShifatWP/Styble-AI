@@ -70,6 +70,7 @@ class Styble_AI_Validator {
 		'styble/advanced-text'   => array( 'attr' => 'advancedTextContent' ),
 		'styble/advanced-image'  => array( 'attr' => 'imgAltText' ),
 		'styble/icon-list-item'  => array( 'attr' => 'listText' ),
+		'styble/accordion-item'  => array( 'attr' => 'accordionTitle' ),
 		'styble/advanced-button' => array(
 			'attr'   => 'labelText',
 			'unless' => 'showLabel',

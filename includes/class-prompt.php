@@ -179,6 +179,10 @@ class Styble_AI_Prompt {
 						'type'        => 'string',
 						'description' => 'REQUIRED on styble/icon-list-item. The list item text.',
 					),
+					'accordionTitle'      => array(
+						'type'        => 'string',
+						'description' => 'REQUIRED on styble/accordion-item. The question or row title. The answer goes in a styble/advanced-text CHILD of the item, not here.',
+					),
 					'separatorText'       => array(
 						'type'        => 'string',
 						'description' => 'The separator caption. Set separatorLabelEnable to false instead for a plain rule.',
@@ -238,7 +242,7 @@ class Styble_AI_Prompt {
 				'',
 				'Read this before anything else — it is the distinction that matters most.',
 				'',
-				'- **Write the content attribute of every block you emit.** advanced-text needs `advancedTextContent`. advanced-image needs `imgAltText`. advanced-button needs `labelText`. icon-list-item needs `listText`. A block missing its content is REJECTED, because it would render a grey "Enter your text...." placeholder — worse than nothing.',
+				'- **Write the content attribute of every block you emit.** advanced-text needs `advancedTextContent`. advanced-image needs `imgAltText`. advanced-button needs `labelText`. icon-list-item needs `listText`. accordion-item needs `accordionTitle`. A block missing its content is REJECTED, because it would render a grey "Enter your text...." placeholder — worse than nothing.',
 				'- `"attrs": {}` on a block that carries text or an image is not a minimal answer, it is an empty page. A tree of correctly-nested empty blocks is a FAILURE, not a clean skeleton.',
 				'- Write real, specific, publishable copy: actual names, actual numbers, actual claims. Never lorem ipsum, never "Your text here".',
 				'- **Styling** attributes are the optional ones — spacing, alignment, colour, gaps, icon sizes. Omit those unless you mean to change them; every block has sensible defaults for them.',
@@ -318,6 +322,8 @@ class Styble_AI_Prompt {
 			$lines[] = $line;
 		}
 
+		$lines[] = '';
+		$lines[] = '**An FAQ is a styble/accordion.** Give it one styble/accordion-item per question. The QUESTION goes in the item\'s `accordionTitle` attribute; the ANSWER goes in a styble/advanced-text block nested INSIDE that item, with textHTMLTag "p". Never flatten questions and answers into a run of loose advanced-text blocks, and never put the answer in accordionTitle.';
 		$lines[] = '';
 		$lines[] = '**A card with a photo cannot be an info-box.** styble/info-box does not accept styble/advanced-image as a child — it is for icon + heading + text + button cards only. For a card with a photograph (a team member, a case study, a product), use a styble/column and stack styble/advanced-image and styble/advanced-text inside it.';
 		$lines[] = '';

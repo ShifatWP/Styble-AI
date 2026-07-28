@@ -1,0 +1,44 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": { "layout": "l-1" },
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          {
+            "block": "styble/advanced-text",
+            "attrs": { "advancedTextContent": "Frequently asked questions", "textHTMLTag": "h2" }
+          },
+          {
+            "block": "styble/accordion",
+            "attrs": { "titleHtmlTag": "h3", "multipleOpen": false },
+            "children": [
+              {
+                "block": "styble/accordion-item",
+                "attrs": { "accordionTitle": "Do you offer dairy-free milk options?", "keepOpen": true },
+                "children": [
+                  {
+                    "block": "styble/advanced-text",
+                    "attrs": { "advancedTextContent": "Yes — oat, almond and soy, at no extra charge.", "textHTMLTag": "p" }
+                  }
+                ]
+              },
+              {
+                "block": "styble/accordion-item",
+                "attrs": { "accordionTitle": "Is your coffee organic and fair trade?" },
+                "children": [
+                  {
+                    "block": "styble/advanced-text",
+                    "attrs": { "advancedTextContent": "We buy beans that are both, sourced from small farms.", "textHTMLTag": "p" }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

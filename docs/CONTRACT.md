@@ -52,7 +52,8 @@ what keeps the fragile surface small.
 
 `styble/container`, `styble/column`, `styble/advanced-text`, `styble/advanced-buttons`,
 `styble/advanced-button`, `styble/advanced-image`, `styble/info-box`,
-`styble/icon-picker`, `styble/icon-list`, `styble/icon-list-item`, `styble/separator`
+`styble/icon-picker`, `styble/icon-list`, `styble/icon-list-item`, `styble/separator`,
+`styble/accordion`, `styble/accordion-item`
 
 Other Styble blocks exist but are rejected with `block_not_allowlisted` — a different
 error from `block_unknown` (block invented outright), so a bad tree tells you whether
@@ -152,6 +153,26 @@ This is applier-owned in the same sense the column geometry is — see
 `DEFAULT_SECTION_PADDING` in `includes/class-page-applier.php` and `SECTION_PADDING`
 in `assets/applier.js`, which must stay in step.
 
+## Accordions (FAQs)
+
+`styble/accordion` holds `styble/accordion-item` children and nothing else. The
+question goes in the item's `accordionTitle`; the **answer is a `styble/advanced-text`
+child of the item**, not part of the title. Without the accordion in the allowlist the
+model flattened FAQs into a run of loose text blocks — structurally valid, and it read
+as answer-then-question.
+
+`acceptsChildren` for the accordion is extracted from the whole block directory, not
+just its edit component: it renders `InnerBlocks` from `AccordionRender.jsx`, so a
+narrower scan recorded it as a LEAF while simultaneously recording `accordion-item` as
+its allowed child. Every accordion was rejected as `block_is_leaf` and the
+contradiction was invisible.
+
+The reverse case also exists. `styble/advanced-image` genuinely accepts inner blocks —
+for a hand-built caption — but the AI has no use for that, and with no parent-side
+restriction nothing would stop a heading being nested inside a photograph. It is listed
+in `$ai_leaf` in the generator, so `acceptsChildren` answers "may the AI put children
+here", which is the only question the validator asks of it.
+
 ## Images
 
 The model writes alt text and never a URL or an id. `selectImage` must stay empty
@@ -176,7 +197,8 @@ and reports a warning. An image is worth less than the page.
 ## Content must be present
 
 `styble/advanced-text`, `styble/advanced-image`, `styble/advanced-button`,
-`styble/icon-list-item` and `styble/separator` all ship a *placeholder* default —
+`styble/icon-list-item`, `styble/accordion-item` and `styble/separator` all ship a
+*placeholder* default —
 "Enter your text....", "List Item Text", the literal word "Separator". A tree that
 omits the content attribute therefore passes every structural rule and then renders a
 column of grey placeholders, which is worse than a rejection because it looks like the

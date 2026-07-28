@@ -456,11 +456,47 @@
             "name": "styble/accordion",
             "title": "Accordion",
             "description": "Styble Accordion block.",
-            "aiAllowlist": false,
+            "aiAllowlist": true,
             "hasBlockJson": true,
-            "acceptsChildren": false,
+            "acceptsChildren": true,
             "uniqueIdPrefix": "sp-styble-accordion-",
-            "editable": [],
+            "editable": {
+                "multipleOpen": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "titleHtmlTag": {
+                    "type": "string",
+                    "default": "h5",
+                    "values": [
+                        "h1",
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "span"
+                    ]
+                },
+                "titleAlignment": {
+                    "type": "string",
+                    "default": "left",
+                    "values": [
+                        "left",
+                        "center",
+                        "right",
+                        "stretch"
+                    ]
+                },
+                "toggleIconAlignment": {
+                    "type": "string",
+                    "default": "right",
+                    "values": [
+                        "left",
+                        "right"
+                    ]
+                }
+            },
             "allowedChildren": [
                 "styble/accordion-item"
             ],
@@ -470,11 +506,20 @@
             "name": "styble/accordion-item",
             "title": "Accordion Item",
             "description": "Styble Accordion Item block.",
-            "aiAllowlist": false,
+            "aiAllowlist": true,
             "hasBlockJson": true,
             "acceptsChildren": true,
             "uniqueIdPrefix": "sp-styble-accordion-item-",
-            "editable": [],
+            "editable": {
+                "accordionTitle": {
+                    "type": "string",
+                    "default": ""
+                },
+                "keepOpen": {
+                    "type": "boolean",
+                    "default": false
+                }
+            },
             "allowedChildren": [],
             "parents": [
                 "styble/accordion"

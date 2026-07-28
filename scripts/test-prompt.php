@@ -101,7 +101,7 @@ check( 'object' === $attrs['type'], 'attrs is an object' );
 $declared = array_keys( isset( $attrs['properties'] ) ? $attrs['properties'] : array() );
 sort( $declared );
 check(
-	array( 'advancedTextContent', 'imgAltText', 'labelText', 'listText', 'separatorText' ) === $declared,
+	array( 'accordionTitle', 'advancedTextContent', 'imgAltText', 'labelText', 'listText', 'separatorText' ) === $declared,
 	'attrs declares exactly the content attributes, no styling: ' . implode( ', ', $declared )
 );
 $styling_leak = array_intersect( $declared, array( 'textHTMLTag', 'textAliment', 'containerWidth', 'layout', 'layoutType', 'sectionPadding' ) );

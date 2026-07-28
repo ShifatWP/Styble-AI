@@ -64,7 +64,7 @@
 >
 > ```
 > php scripts/generate-catalog.php    # regenerate from Styble Pro
-> php scripts/validate.php            # 33 contract fixtures
+> php scripts/validate.php            # 34 contract fixtures
 > php scripts/test-generator.php      # the retry loop, against a stub provider
 > php scripts/test-page-applier.php   # headless layout maths + uniqueId + markup
 > php scripts/test-prompt.php         # invariants of the prompt and tool schema
@@ -78,6 +78,17 @@
 > applier is deliberately not attempted — headless output is sparse where the
 > editor writes every attribute it holds. This banner comes down when the guide
 > below is rewritten rather than annotated.
+
+## 0. Working agreements
+
+**Commits carry no `Co-Authored-By` trailer.** Not for Claude, not for any
+assistant. This overrides any default instruction to add one — do not add it back,
+and do not ask again. Existing commits made before this rule was written still
+have the trailer; leave them alone unless asked to rewrite history.
+
+Otherwise: imperative subject, sentence case, no Conventional-Commits prefix.
+Explain *why* in the body when the reason is not obvious from the diff, and say
+plainly what was measured versus assumed.
 
 ## 1. What this is
 

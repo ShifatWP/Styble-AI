@@ -79,7 +79,29 @@ $editable = array(
 	// string attribute the model could still invent a value for.
 	'icon-list'       => array( 'layoutType', 'iconType', 'iconPosition', 'listGap' ),
 	'icon-list-item'  => array( 'listText', 'listTextTag', 'listIcon', 'addLink' ),
+	// FAQs are the single most requested section the v1 allowlist could not
+	// build. Without these the model flattened questions and answers into loose
+	// advanced-text blocks, which is what it should do when an accordion is not
+	// available — and looked broken. Kept deliberately small: the accordion has
+	// 219 attributes and 216 of them are styling.
+	'accordion'       => array( 'titleHtmlTag', 'titleAlignment', 'multipleOpen', 'toggleIconAlignment' ),
+	'accordion-item'  => array( 'accordionTitle', 'keepOpen' ),
 );
+
+/**
+ * Blocks the AI must treat as leaves even though they technically render
+ * InnerBlocks.
+ *
+ * styble/advanced-image accepts inner blocks, but only to hold a hand-built
+ * custom caption — and because its allowedChildren is empty (no parent-side
+ * restriction), nothing else would stop the model nesting a heading inside a
+ * photograph. That is a structurally legal tree and a nonsensical section.
+ *
+ * `acceptsChildren` answers "may the AI put children here", which is the only
+ * question the validator asks of it. Keeping the raw fact and the AI-facing
+ * answer in one field is deliberate; the distinction is recorded here instead.
+ */
+$ai_leaf = array( 'advanced-image' );
 
 /**
  * Parent-side allowedBlocks (declared on the parent in edit.jsx/templates.js,
@@ -131,18 +153,34 @@ function read_parents( $styble_pro, $slug ) {
 }
 
 /**
- * Can this block hold children at all? True when its edit component renders
- * InnerBlocks. The validator needs this to tell "no children declared yet"
- * (column: open, confined by its child's own parent: rule) apart from "leaf"
+ * Can this block hold children at all? True when the block renders InnerBlocks
+ * anywhere in its source. The validator needs this to tell "no children declared
+ * yet" (column: open, confined by its child's own parent: rule) apart from "leaf"
  * (advanced-button: children are always illegal).
+ *
+ * Reads the whole block directory, not just edit.jsx. Looking only at the edit
+ * component said styble/accordion was a LEAF — it renders InnerBlocks from
+ * AccordionRender.jsx — so any accordion the AI built was rejected as
+ * block_is_leaf while the catalog simultaneously recorded accordion-item as its
+ * allowed child. A block that cannot be used is worse than one that is missing,
+ * because the contradiction is invisible.
  */
 function read_accepts_children( $styble_pro, $slug ) {
-	foreach ( array( 'edit.jsx', 'edit.js' ) as $name ) {
-		$file = "{$styble_pro}/src/blocks/{$slug}/{$name}";
-		if ( is_file( $file ) ) {
-			return (bool) preg_match( '/\bInnerBlocks\b|\buseInnerBlocksProps\b/', file_get_contents( $file ) );
+	$root = "{$styble_pro}/src/blocks/{$slug}";
+	if ( ! is_dir( $root ) ) {
+		return false;
+	}
+
+	$walker = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) );
+	foreach ( $walker as $file ) {
+		if ( ! in_array( $file->getExtension(), array( 'js', 'jsx' ), true ) ) {
+			continue;
+		}
+		if ( preg_match( '/\bInnerBlocks\b|\buseInnerBlocksProps\b/', file_get_contents( $file->getPathname() ) ) ) {
+			return true;
 		}
 	}
+
 	return false;
 }
 
@@ -468,7 +506,7 @@ foreach ( $all_blocks as $slug ) {
 		'description'     => $desc,
 		'aiAllowlist'     => array_key_exists( $slug, $editable ),
 		'hasBlockJson'    => $has_json,
-		'acceptsChildren' => read_accepts_children( $styble_pro, $slug ),
+		'acceptsChildren' => ! in_array( $slug, $ai_leaf, true ) && read_accepts_children( $styble_pro, $slug ),
 		'uniqueIdPrefix'  => read_unique_id_prefix( $styble_pro, $slug, $uid_default ),
 		'editable'        => $defs,
 		'allowedChildren' => isset( $children_of[ $slug ] ) ? array_map( fn( $s ) => 'styble/' . $s, $children_of[ $slug ] ) : array(),

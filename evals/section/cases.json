@@ -8,10 +8,20 @@
       "why": "The simplest thing anyone will ask for. If this is not perfect, nothing else matters.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1 },
-        "mustContain": ["styble/advanced-text", "styble/advanced-buttons", "styble/advanced-button"],
-        "minOf": { "styble/advanced-button": 2 },
-        "headingTags": ["h1"]
+        "counts": {
+          "styble/container": 1
+        },
+        "mustContain": [
+          "styble/advanced-text",
+          "styble/advanced-buttons",
+          "styble/advanced-button"
+        ],
+        "minOf": {
+          "styble/advanced-button": 2
+        },
+        "headingTags": [
+          "h1"
+        ]
       }
     },
     {
@@ -20,8 +30,13 @@
       "why": "The most common multi-column shape. Catches column-count and layout-mismatch errors together.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1, "styble/column": 3 },
-        "mustContain": ["styble/advanced-text"]
+        "counts": {
+          "styble/container": 1,
+          "styble/column": 3
+        },
+        "mustContain": [
+          "styble/advanced-text"
+        ]
       }
     },
     {
@@ -30,9 +45,15 @@
       "why": "info-box IS this card. If the model builds it out of loose columns instead, block choice is the problem, not layout.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1 },
-        "mustContain": ["styble/icon-picker"],
-        "preferContain": ["styble/info-box"]
+        "counts": {
+          "styble/container": 1
+        },
+        "mustContain": [
+          "styble/icon-picker"
+        ],
+        "preferContain": [
+          "styble/info-box"
+        ]
       }
     },
     {
@@ -41,10 +62,22 @@
       "why": "The brief the whole thing started from. Long, structured, and the one most likely to blow the column caps.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1, "styble/column": 3 },
-        "mustContain": ["styble/advanced-text", "styble/advanced-button"],
-        "minOf": { "styble/advanced-button": 3 },
-        "copyMustMention": ["9", "29", "79"]
+        "counts": {
+          "styble/container": 1,
+          "styble/column": 3
+        },
+        "mustContain": [
+          "styble/advanced-text",
+          "styble/advanced-button"
+        ],
+        "minOf": {
+          "styble/advanced-button": 3
+        },
+        "copyMustMention": [
+          "9",
+          "29",
+          "79"
+        ]
       }
     },
     {
@@ -53,9 +86,16 @@
       "why": "Single column. Checks the model does not invent columns it was not asked for, and that it uses the centre alignment attribute rather than describing centring in the copy.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1, "styble/column": 1 },
-        "mustContain": ["styble/advanced-button"],
-        "maxOf": { "styble/advanced-button": 1 }
+        "counts": {
+          "styble/container": 1,
+          "styble/column": 1
+        },
+        "mustContain": [
+          "styble/advanced-button"
+        ],
+        "maxOf": {
+          "styble/advanced-button": 1
+        }
       }
     },
     {
@@ -64,8 +104,12 @@
       "why": "No dedicated quote block exists in the allowlist. Tests whether the model composes one sensibly instead of inventing a block.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1 },
-        "mustContain": ["styble/advanced-text"]
+        "counts": {
+          "styble/container": 1
+        },
+        "mustContain": [
+          "styble/advanced-text"
+        ]
       }
     },
     {
@@ -74,8 +118,14 @@
       "why": "The one case where setting `layout` explicitly is correct. Checks the unequal-split instruction actually lands.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1, "styble/column": 2, "styble/advanced-image": 1 },
-        "layoutIn": ["l-2-60-40"]
+        "counts": {
+          "styble/container": 1,
+          "styble/column": 2,
+          "styble/advanced-image": 1
+        },
+        "layoutIn": [
+          "l-2-60-40"
+        ]
       }
     },
     {
@@ -84,8 +134,14 @@
       "why": "The mirror of the previous case. A model that has memorised one layout id rather than reading the table will get this wrong.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1, "styble/column": 2, "styble/advanced-image": 1 },
-        "layoutIn": ["l-2-40-60"]
+        "counts": {
+          "styble/container": 1,
+          "styble/column": 2,
+          "styble/advanced-image": 1
+        },
+        "layoutIn": [
+          "l-2-40-60"
+        ]
       }
     },
     {
@@ -94,18 +150,31 @@
       "why": "icon-list is exactly this. Another block-choice probe, and it needs icon-list-item children to be legal.",
       "expect": {
         "valid": true,
-        "mustContain": ["styble/advanced-text"],
-        "preferContain": ["styble/icon-list", "styble/icon-list-item"]
+        "mustContain": [
+          "styble/advanced-text"
+        ],
+        "preferContain": [
+          "styble/icon-list",
+          "styble/icon-list-item"
+        ]
       }
     },
     {
       "id": "faq-four",
       "prompt": "An FAQ section with four questions and answers.",
-      "why": "The accordion block is NOT allowlisted. Correct behaviour is to compose from allowed blocks; failure is inventing styble/accordion.",
+      "why": "FAQs are the section the v1 allowlist could not build. The accordion is allowlisted now, so flattening Q&A into loose advanced-text blocks is the failure — and the answer must be a child of the item, not the title.",
       "expect": {
         "valid": true,
-        "mustContain": ["styble/advanced-text"],
-        "mustNotContain": ["styble/accordion", "styble/accordion-item"]
+        "counts": {
+          "styble/accordion": 1
+        },
+        "mustContain": [
+          "styble/accordion-item",
+          "styble/advanced-text"
+        ],
+        "minOf": {
+          "styble/accordion-item": 4
+        }
       }
     },
     {
@@ -114,8 +183,15 @@
       "why": "Four columns, very short copy. Checks the four-column layout and that numbers survive into the copy.",
       "expect": {
         "valid": true,
-        "counts": { "styble/container": 1, "styble/column": 4 },
-        "copyMustMention": ["10,000", "99.9", "15"]
+        "counts": {
+          "styble/container": 1,
+          "styble/column": 4
+        },
+        "copyMustMention": [
+          "10,000",
+          "99.9",
+          "15"
+        ]
       }
     },
     {
@@ -124,9 +200,15 @@
       "why": "Images must be placeholders. Catches invented URLs and attachment ids, which the validator rejects outright.",
       "expect": {
         "valid": true,
-        "counts": { "styble/column": 2 },
-        "minOf": { "styble/advanced-image": 2 },
-        "mustContain": ["styble/advanced-text"]
+        "counts": {
+          "styble/column": 2
+        },
+        "minOf": {
+          "styble/advanced-image": 2
+        },
+        "mustContain": [
+          "styble/advanced-text"
+        ]
       }
     },
     {
@@ -135,7 +217,9 @@
       "why": "Five columns is near the cap of six. Checks the model does not exceed it and does not silently drop logos.",
       "expect": {
         "valid": true,
-        "minOf": { "styble/advanced-image": 5 }
+        "minOf": {
+          "styble/advanced-image": 5
+        }
       }
     },
     {
@@ -144,8 +228,12 @@
       "why": "No form block exists. Correct behaviour is a button; failure is inventing an input block.",
       "expect": {
         "valid": true,
-        "mustContain": ["styble/advanced-button"],
-        "maxOf": { "styble/advanced-button": 1 }
+        "mustContain": [
+          "styble/advanced-button"
+        ],
+        "maxOf": {
+          "styble/advanced-button": 1
+        }
       }
     },
     {
@@ -154,7 +242,9 @@
       "why": "Numbered ordering. icon-list with iconType=ordered is the designed answer; three columns is acceptable.",
       "expect": {
         "valid": true,
-        "mustContain": ["styble/advanced-text"]
+        "mustContain": [
+          "styble/advanced-text"
+        ]
       }
     },
     {
@@ -163,7 +253,9 @@
       "why": "\"Dark\" needs a background attribute that is NOT in the allowlist. Tests whether the model degrades gracefully or invents an attribute key.",
       "expect": {
         "valid": true,
-        "mustContain": ["styble/advanced-button"]
+        "mustContain": [
+          "styble/advanced-button"
+        ]
       }
     },
     {
@@ -172,9 +264,17 @@
       "why": "Long-form copy. Checks paragraphs use textHTMLTag p rather than heading tags, and that copy is specific rather than generic.",
       "expect": {
         "valid": true,
-        "minOf": { "styble/advanced-text": 2 },
-        "copyMustMention": ["1974"],
-        "headingTags": ["h1", "h2", "h3"]
+        "minOf": {
+          "styble/advanced-text": 2
+        },
+        "copyMustMention": [
+          "1974"
+        ],
+        "headingTags": [
+          "h1",
+          "h2",
+          "h3"
+        ]
       }
     },
     {
@@ -183,8 +283,16 @@
       "why": "separatorLabelEnable must be false or the rule renders the literal word \"Separator\". A known trap the prompt calls out.",
       "expect": {
         "valid": true,
-        "mustContain": ["styble/separator"],
-        "attrEquals": [{ "block": "styble/separator", "attr": "separatorLabelEnable", "value": false }]
+        "mustContain": [
+          "styble/separator"
+        ],
+        "attrEquals": [
+          {
+            "block": "styble/separator",
+            "attr": "separatorLabelEnable",
+            "value": false
+          }
+        ]
       }
     },
     {
@@ -193,7 +301,9 @@
       "why": "Exactly at the six-column cap. Checks the boundary is reachable rather than rejected.",
       "expect": {
         "valid": true,
-        "counts": { "styble/column": 6 }
+        "counts": {
+          "styble/column": 6
+        }
       }
     },
     {
@@ -202,7 +312,9 @@
       "why": "Deliberately impossible — twelve columns exceeds the cap of six. The right outcome is a sane reduced section, not a validator rejection. This case measures graceful degradation.",
       "expect": {
         "valid": true,
-        "maxOf": { "styble/column": 6 }
+        "maxOf": {
+          "styble/column": 6
+        }
       }
     }
   ]
