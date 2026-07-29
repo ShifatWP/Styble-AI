@@ -1,0 +1,43 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": {
+      "layout": "l-3-equal",
+      "sectionPadding": { "device": { "Desktop": { "top": 80, "right": 24, "bottom": 80, "left": 24 } }, "unit": { "Desktop": "px", "Tablet": "px", "Mobile": "px" } },
+      "sectionBg": { "color": { "style": "bgColor", "solidColor": "var(--styble-light-neutral)" } }
+    },
+    "children": [
+      {
+        "block": "styble/column",
+        "attrs": {
+          "sectionBg": { "color": { "style": "bgColor", "solidColor": "var(--styble-white)" } },
+          "sectionPadding": { "device": { "Desktop": { "top": 32, "right": 32, "bottom": 32, "left": 32 } }, "unit": { "Desktop": "px", "Tablet": "px", "Mobile": "px" } },
+          "sectionBorderRadius": { "value": { "top": 12, "right": 12, "bottom": 12, "left": 12 }, "unit": "px", "allChange": true }
+        },
+        "children": [
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "Starter", "textHTMLTag": "h3" } },
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "$9 a month for one project.", "textHTMLTag": "p" } }
+        ]
+      },
+      {
+        "block": "styble/column",
+        "attrs": {
+          "sectionBg": { "color": { "style": "bgColor", "solidColor": "var(--styble-white)" } },
+          "sectionBorderRadius": { "value": { "top": 12, "right": 12, "bottom": 12, "left": 12 }, "unit": "px", "allChange": true }
+        },
+        "children": [
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "Team", "textHTMLTag": "h3" } },
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "$29 a month for ten projects.", "textHTMLTag": "p" } }
+        ]
+      },
+      {
+        "block": "styble/column",
+        "children": [
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "Business", "textHTMLTag": "h3" } },
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "$79 a month, unlimited.", "textHTMLTag": "p" } }
+        ]
+      }
+    ]
+  }
+}

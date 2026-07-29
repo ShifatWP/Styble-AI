@@ -1,0 +1,131 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": {
+      "sectionPadding": {
+        "device": {
+          "Desktop": {
+            "top": 96,
+            "right": 24,
+            "bottom": 96,
+            "left": 24
+          }
+        },
+        "unit": {
+          "Desktop": "px",
+          "Tablet": "px",
+          "Mobile": "px"
+        }
+      },
+      "sectionBg": {
+        "color": {
+          "style": "bgColor",
+          "solidColor": "var(--styble-dark-neutral)"
+        }
+      }
+    },
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          {
+            "block": "styble/advanced-text",
+            "attrs": {
+              "advancedTextContent": "Everything you need to ship",
+              "textHTMLTag": "h2",
+              "textFillBg": {
+                "color": {
+                  "style": "bgColor",
+                  "solidColor": "var(--styble-white)"
+                }
+              }
+            }
+          },
+          {
+            "block": "styble/icon-list",
+            "attrs": {
+              "iconType": "icon"
+            },
+            "children": [
+              {
+                "block": "styble/icon-list-item",
+                "attrs": {
+                  "listText": "Unlimited environments",
+                  "listIcon": {
+                    "source": "icon",
+                    "iconName": "check",
+                    "image": ""
+                  },
+                  "listTextColor": "var(--styble-white)"
+                }
+              },
+              {
+                "block": "styble/icon-list-item",
+                "attrs": {
+                  "listText": "Rollback in one click",
+                  "listTextColor": "var(--styble-light-neutral)",
+                  "listIcon": {
+                    "source": "icon",
+                    "iconName": "check",
+                    "image": ""
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "block": "styble/separator",
+            "attrs": {
+              "separatorType": "solid",
+              "separatorText": "and more",
+              "separatorLabelColor": "var(--styble-white)"
+            }
+          },
+          {
+            "block": "styble/accordion",
+            "attrs": {
+              "titleTextColor": "var(--styble-white)",
+              "contentTextColor": "var(--styble-light-neutral)"
+            },
+            "children": [
+              {
+                "block": "styble/accordion-item",
+                "attrs": {
+                  "accordionTitle": "Is there a free tier?"
+                },
+                "children": [
+                  {
+                    "block": "styble/advanced-text",
+                    "attrs": {
+                      "advancedTextContent": "Yes, one project free forever.",
+                      "textHTMLTag": "p",
+                      "textFillBg": {
+                        "color": {
+                          "style": "bgColor",
+                          "solidColor": "var(--styble-light-neutral)"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "block": "styble/advanced-buttons",
+            "children": [
+              {
+                "block": "styble/advanced-button",
+                "attrs": {
+                  "labelText": "Start free",
+                  "btnTextColor": "var(--styble-white)"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

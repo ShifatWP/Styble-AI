@@ -1,0 +1,64 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": {
+      "sectionPadding": {
+        "device": {
+          "Desktop": {
+            "top": 96,
+            "right": 24,
+            "bottom": 96,
+            "left": 24
+          }
+        },
+        "unit": {
+          "Desktop": "px",
+          "Tablet": "px",
+          "Mobile": "px"
+        }
+      },
+      "sectionBg": {
+        "color": {
+          "style": "bgColor",
+          "solidColor": "var(--styble-dark-neutral)"
+        }
+      }
+    },
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          {
+            "block": "styble/advanced-text",
+            "attrs": {
+              "advancedTextContent": "Ship faster, break less",
+              "textHTMLTag": "h1",
+              "textAliment": "center",
+              "textFillBg": {
+                "color": {
+                  "style": "bgColor",
+                  "solidColor": "var(--styble-white)"
+                }
+              }
+            }
+          },
+          {
+            "block": "styble/advanced-text",
+            "attrs": {
+              "advancedTextContent": "Deploy with confidence on every commit.",
+              "textHTMLTag": "p",
+              "textAliment": "center",
+              "textFillBg": {
+                "color": {
+                  "style": "bgColor",
+                  "solidColor": "var(--styble-white)"
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

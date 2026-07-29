@@ -1,0 +1,16 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": {
+      "sectionBg": { "color": { "style": "image", "solidColor": "var(--styble-dark-neutral)" } },
+      "sectionBgImg": { "alt": "sunlit coffee shop interior" },
+      "sectionBgImgOverlay": { "style": "gradient-overlay", "gradient": "linear-gradient(#000,#fff)" }
+    },
+    "children": [
+      { "block": "styble/column", "children": [
+        { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "Broken overlay mode", "textHTMLTag": "h1" } }
+      ] }
+    ]
+  }
+}

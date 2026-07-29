@@ -248,6 +248,98 @@ $partial = $applier->to_markup(
 );
 check( 1 === substr_count( $partial, '<!-- wp:styble/container ' ), 'an unbuilt section serializes to nothing' );
 
+/* ------------------------------------------------------------------ */
+/* Card padding: a column with a background and no padding of its own  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A one-column tree whose column carries the given attrs.
+ *
+ * @param array $column_attrs Attributes for the single column.
+ *
+ * @return array emit_layout envelope.
+ */
+function card_tree( array $column_attrs ) {
+	return array(
+		'version' => '0.1.0',
+		'root'    => array(
+			'block'    => 'styble/container',
+			'children' => array(
+				array(
+					'block'    => 'styble/column',
+					'attrs'    => $column_attrs,
+					'children' => array(
+						array(
+							'block' => 'styble/advanced-text',
+							'attrs' => array( 'advancedTextContent' => 'Starter', 'textHTMLTag' => 'h3' ),
+						),
+					),
+				),
+			),
+		),
+	);
+}
+
+/**
+ * The single column's attributes after the applier has run.
+ *
+ * @param array $column_attrs Attributes to feed in.
+ *
+ * @return array
+ */
+function applied_column_attrs( Styble_AI_Page_Applier $applier, array $column_attrs ) {
+	$blocks = $applier->to_blocks( array( array( 'id' => 'card', 'tree' => card_tree( $column_attrs ) ) ) );
+	return $blocks[0]['innerBlocks'][0]['attrs'];
+}
+
+$solid = array( 'sectionBg' => array( 'color' => array( 'style' => 'bgColor', 'solidColor' => 'var(--styble-white)' ) ) );
+
+$with_bg = applied_column_attrs( $applier, $solid );
+check(
+	isset( $with_bg['sectionPadding']['device']['Desktop']['top'] ) && 32 === $with_bg['sectionPadding']['device']['Desktop']['top'],
+	'a column with a solid background gets card padding'
+);
+
+$gradient = array( 'sectionBg' => array( 'color' => array( 'style' => 'gradient', 'gradient' => 'linear-gradient(90deg,#000,#fff)' ) ) );
+check(
+	isset( applied_column_attrs( $applier, $gradient )['sectionPadding'] ),
+	'a column with a gradient background gets card padding too'
+);
+
+check(
+	! isset( applied_column_attrs( $applier, array() )['sectionPadding'] ),
+	'a column with no background is left unpadded'
+);
+
+// The block ships style bgColor with an empty solidColor and paints nothing, so
+// that must not look like a background to the backstop.
+$empty_bg = array( 'sectionBg' => array( 'color' => array( 'style' => 'bgColor', 'solidColor' => '' ) ) );
+check(
+	! isset( applied_column_attrs( $applier, $empty_bg )['sectionPadding'] ),
+	'an empty solidColor does not count as a background'
+);
+
+$own_padding = $solid;
+$own_padding['sectionPadding'] = array(
+	'device' => array( 'Desktop' => array( 'top' => 8, 'right' => 8, 'bottom' => 8, 'left' => 8 ) ),
+	'unit'   => array( 'Desktop' => 'px' ),
+);
+check(
+	8 === applied_column_attrs( $applier, $own_padding )['sectionPadding']['device']['Desktop']['top'],
+	'a model-supplied column padding is never overwritten'
+);
+
+// The two appliers must agree, and the only machine-checkable half of that here
+// is that the PHP constant matches the literal in the JS file.
+$js = file_get_contents( dirname( __DIR__ ) . '/assets/applier.js' );
+preg_match( '/var CARD_PADDING = \{(.+?)\n\t\};/s', $js, $js_card );
+$desktop_top = array();
+preg_match( '/Desktop: \{ top: (\d+)/', isset( $js_card[1] ) ? $js_card[1] : '', $desktop_top );
+check(
+	isset( $desktop_top[1] ) && (int) $desktop_top[1] === Styble_AI_Page_Applier::DEFAULT_CARD_PADDING['device']['Desktop']['top'],
+	'CARD_PADDING in applier.js matches DEFAULT_CARD_PADDING in PHP'
+);
+
 echo "\n";
 printf( "%d checks, %d failed\n", $checks, $failures );
 exit( $failures ? 1 : 0 );

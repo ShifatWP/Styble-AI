@@ -1,0 +1,12 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": { "sectionBg": { "color": { "style": "video", "solidColor": "var(--styble-dark-neutral)" } } },
+    "children": [
+      { "block": "styble/column", "children": [
+        { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "No stock video library exists", "textHTMLTag": "h1" } }
+      ] }
+    ]
+  }
+}

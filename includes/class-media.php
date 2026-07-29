@@ -106,7 +106,7 @@ class Styble_AI_Media {
 		$this->warnings = array();
 		$this->used     = array();
 
-		if ( ! self::is_enabled() || ! isset( $tree['root'] ) ) {
+		if ( ! isset( $tree['root'] ) ) {
 			return array(
 				'tree'     => $tree,
 				'warnings' => array(),
@@ -114,6 +114,11 @@ class Styble_AI_Media {
 			);
 		}
 
+		// The tree is walked even with no provider configured, which it was not
+		// before. An advanced-image simply keeps its placeholder in that case — but
+		// a background left on style "image" with no url resolves to `background:
+		// none` and paints nothing, so it has to be walked back to its fallback
+		// colour whether or not a provider exists to fill it.
 		$filled       = 0;
 		$tree['root'] = $this->walk( $tree['root'], $filled );
 
@@ -131,7 +136,15 @@ class Styble_AI_Media {
 	 * @return array
 	 */
 	private function walk( array $node, &$filled ) {
-		if ( isset( $node['block'] ) && self::IMAGE_BLOCK === $node['block'] ) {
+		// A background image, on any block that has one. Same contract as an
+		// advanced-image: the model described the photograph and wrote no media, so
+		// this is where the media appears.
+		if ( isset( $node['attrs']['sectionBg']['color']['style'] )
+			&& 'image' === $node['attrs']['sectionBg']['color']['style'] ) {
+			$node = $this->fill_background( $node, $filled );
+		}
+
+		if ( self::is_enabled() && isset( $node['block'] ) && self::IMAGE_BLOCK === $node['block'] ) {
 			$id = $this->resolve( isset( $node['attrs']['imgAltText'] ) ? (string) $node['attrs']['imgAltText'] : '' );
 			if ( $id ) {
 				$attrs = isset( $node['attrs'] ) && is_array( $node['attrs'] ) ? $node['attrs'] : array();
@@ -152,6 +165,90 @@ class Styble_AI_Media {
 				}
 			}
 		}
+
+		return $node;
+	}
+
+	/**
+	 * Resolve a node's background image, or fall back to its colour.
+	 *
+	 * Unlike advanced-image, where a failed fill leaves a visible placeholder the
+	 * user can replace, a background that stays on style "image" with no url
+	 * resolves through Css_Helpers::color_controls() to the literal `none` — the
+	 * section would paint nothing and say nothing. So on failure the style is
+	 * moved to "bgColor", which the validator guarantees has a colour behind it.
+	 * That turns "no photo available" into a plain coloured band rather than an
+	 * invisible section.
+	 *
+	 * The written shape mirrors what the editor's own media picker stores, so a
+	 * user opening the section afterwards sees a normally-populated control:
+	 * url plus focalPoint and scale.
+	 *
+	 * @param array $node   Tree node carrying an image background.
+	 * @param int   $filled Running count, by reference.
+	 *
+	 * @return array
+	 */
+	private function fill_background( array $node, &$filled ) {
+		$attrs = $node['attrs'];
+		$query = isset( $attrs['sectionBgImg']['alt'] ) ? (string) $attrs['sectionBgImg']['alt'] : '';
+
+		// No provider configured is not a failure worth a per-section warning: it
+		// is a setting, and the whole plugin behaves that way without one. Degrade
+		// quietly and say it once.
+		if ( ! self::is_enabled() ) {
+			$this->warnings[]  = 'Background photos need a stock photo provider under Styble AI → Settings; those sections used their fallback colour.';
+			$this->warnings    = array_values( array_unique( $this->warnings ) );
+			return self::background_to_colour( $node );
+		}
+
+		$id  = '' === trim( $query ) ? 0 : $this->resolve( $query );
+		$url = $id ? wp_get_attachment_image_url( $id, 'full' ) : '';
+
+		if ( ! $id || ! $url ) {
+			$this->warnings[] = sprintf(
+				'No background photo for "%s", so that section used its fallback colour.',
+				'' === trim( $query ) ? '(no description)' : $query
+			);
+			return self::background_to_colour( $node );
+		}
+
+		$attrs['sectionBgImg'] = array(
+			'id'         => $id,
+			'url'        => $url,
+			'alt'        => $query,
+			// Centre and cover: the editor's own defaults for a new pick, and the
+			// only sane choice without knowing the photograph's subject.
+			'focalPoint' => array(
+				'x' => 0.5,
+				'y' => 0.5,
+			),
+			'scale'      => 'cover',
+		);
+
+		$node['attrs'] = $attrs;
+		$filled++;
+
+		return $node;
+	}
+
+	/**
+	 * Move a background off style "image" so its fallback colour paints.
+	 *
+	 * The overlay goes too: a scrim exists to hold text off a photograph, and over
+	 * a flat colour it only darkens the colour the section already chose.
+	 *
+	 * @param array $node Tree node.
+	 *
+	 * @return array
+	 */
+	private static function background_to_colour( array $node ) {
+		$attrs = $node['attrs'];
+
+		$attrs['sectionBg']['color']['style'] = 'bgColor';
+		unset( $attrs['sectionBgImg'], $attrs['sectionBgImgOverlay'], $attrs['sectionBgImgOverlayOpacity'] );
+
+		$node['attrs'] = $attrs;
 
 		return $node;
 	}

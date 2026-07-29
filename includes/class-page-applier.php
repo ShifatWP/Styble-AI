@@ -78,6 +78,42 @@ class Styble_AI_Page_Applier {
 	);
 
 	/**
+	 * Padding given to a column that has a background but set no padding.
+	 *
+	 * Tighter and even, unlike the section band above: a card is padded inward on
+	 * all four sides, not given a vertical rhythm. See with_card_padding().
+	 *
+	 * Kept in step with CARD_PADDING in assets/applier.js.
+	 */
+	const DEFAULT_CARD_PADDING = array(
+		'device' => array(
+			'Desktop' => array(
+				'top'    => 32,
+				'right'  => 32,
+				'bottom' => 32,
+				'left'   => 32,
+			),
+			'Tablet'  => array(
+				'top'    => 28,
+				'right'  => 28,
+				'bottom' => 28,
+				'left'   => 28,
+			),
+			'Mobile'  => array(
+				'top'    => 24,
+				'right'  => 24,
+				'bottom' => 24,
+				'left'   => 24,
+			),
+		),
+		'unit'   => array(
+			'Desktop' => 'px',
+			'Tablet'  => 'px',
+			'Mobile'  => 'px',
+		),
+	);
+
+	/**
 	 * @var Styble_AI_Catalog
 	 */
 	private $catalog;
@@ -157,6 +193,69 @@ class Styble_AI_Page_Applier {
 	}
 
 	/**
+	 * Give a column that has a background the padding that makes it a card.
+	 *
+	 * sectionPadding is zero on all four sides for a column too, so a tinted or
+	 * white column with no padding renders its copy flush against the edge of the
+	 * tint. That is not a styling preference the model might reasonably have
+	 * chosen — it is a card that looks broken, and it looks broken in the same
+	 * silent way an unpadded section did.
+	 *
+	 * Applied only when there is a background AND no padding of its own. A column
+	 * with no background wants no padding (the gap between columns does that work),
+	 * and a model-supplied value is never overwritten.
+	 *
+	 * Kept in step with CARD_PADDING in assets/applier.js.
+	 *
+	 * @param array $node Tree node.
+	 *
+	 * @return array
+	 */
+	private static function with_card_padding( array $node ) {
+		if ( ! isset( $node['block'] ) || self::COLUMN_BLOCK !== $node['block'] ) {
+			return $node;
+		}
+
+		$attrs = isset( $node['attrs'] ) && is_array( $node['attrs'] ) ? $node['attrs'] : array();
+		if ( ! self::has_background( $attrs ) || isset( $attrs['sectionPadding'] ) ) {
+			return $node;
+		}
+
+		$attrs['sectionPadding'] = self::DEFAULT_CARD_PADDING;
+		$node['attrs']          = $attrs;
+
+		return $node;
+	}
+
+	/**
+	 * Does this attribute bag carry a background that will actually paint?
+	 *
+	 * A style of bgColor with an empty solidColor is what the block ships by
+	 * default and paints nothing, so it must not trigger the padding backstop.
+	 *
+	 * @param array $attrs Node attributes.
+	 *
+	 * @return bool
+	 */
+	private static function has_background( array $attrs ) {
+		if ( ! isset( $attrs['sectionBg']['color'] ) || ! is_array( $attrs['sectionBg']['color'] ) ) {
+			return false;
+		}
+
+		$color = $attrs['sectionBg']['color'];
+		$style = isset( $color['style'] ) ? $color['style'] : '';
+
+		if ( 'gradient' === $style ) {
+			return '' !== trim( (string) ( isset( $color['gradient'] ) ? $color['gradient'] : '' ) );
+		}
+		if ( 'bgColor' === $style ) {
+			return '' !== trim( (string) ( isset( $color['solidColor'] ) ? $color['solidColor'] : '' ) );
+		}
+
+		return false;
+	}
+
+	/**
 	 * Build one node and its subtree.
 	 *
 	 * @param array  $node  Tree node.
@@ -170,6 +269,8 @@ class Styble_AI_Page_Applier {
 		if ( ! isset( $node['block'] ) || ! is_string( $node['block'] ) ) {
 			throw new RuntimeException( 'Styble AI: tree node has no block name.' );
 		}
+
+		$node = self::with_card_padding( $node );
 
 		if ( self::CONTAINER_BLOCK === $node['block'] ) {
 			return $this->build_container( $node, $scope, $path );

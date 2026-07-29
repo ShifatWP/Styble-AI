@@ -488,6 +488,14 @@
                         "stretch"
                     ]
                 },
+                "titleTextColor": {
+                    "type": "string",
+                    "default": "var(--styble-heading-color)"
+                },
+                "contentTextColor": {
+                    "type": "string",
+                    "default": "var(--styble-text-color)"
+                },
                 "toggleIconAlignment": {
                     "type": "string",
                     "default": "right",
@@ -578,6 +586,10 @@
                             "Mobile": "px"
                         }
                     }
+                },
+                "btnTextColor": {
+                    "type": "string",
+                    "default": ""
                 }
             },
             "allowedChildren": [],
@@ -739,9 +751,22 @@
                     "type": "string",
                     "default": "Add Your Sub Heading Text Here"
                 },
-                "advancedTextColor": {
-                    "type": "string",
-                    "default": "var(--styble-text-color)"
+                "subHeadingBg": {
+                    "type": "object",
+                    "default": {
+                        "color": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "var(--styble-heading-color)",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        },
+                        "hover": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        }
+                    }
                 },
                 "textHTMLTag": {
                     "type": "string",
@@ -777,6 +802,23 @@
                         "center",
                         "right"
                     ]
+                },
+                "textFillBg": {
+                    "type": "object",
+                    "default": {
+                        "color": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "var(--styble-text-color)",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        },
+                        "hover": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        }
+                    }
                 },
                 "subHeading": {
                     "type": "boolean",
@@ -821,6 +863,67 @@
             "acceptsChildren": true,
             "uniqueIdPrefix": "sp-styble-column-",
             "editable": {
+                "sectionBg": {
+                    "type": "object",
+                    "default": {
+                        "color": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        },
+                        "hover": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        }
+                    }
+                },
+                "sectionBorderRadius": {
+                    "type": "object",
+                    "default": {
+                        "value": {
+                            "top": 0,
+                            "right": 0,
+                            "bottom": 0,
+                            "left": 0
+                        },
+                        "unit": "px",
+                        "allChange": true
+                    }
+                },
+                "sectionPadding": {
+                    "type": "object",
+                    "default": {
+                        "device": {
+                            "Desktop": {
+                                "top": 0,
+                                "right": 0,
+                                "bottom": 0,
+                                "left": 0
+                            },
+                            "Tablet": {
+                                "top": "",
+                                "right": "",
+                                "bottom": "",
+                                "left": ""
+                            },
+                            "Mobile": {
+                                "top": "",
+                                "right": "",
+                                "bottom": "",
+                                "left": ""
+                            }
+                        },
+                        "unit": {
+                            "Desktop": "px",
+                            "Tablet": "px",
+                            "Mobile": "px"
+                        },
+                        "allChange": true
+                    }
+                },
                 "columnFlex": {
                     "type": "object",
                     "default": {
@@ -864,6 +967,42 @@
             "acceptsChildren": true,
             "uniqueIdPrefix": "sp-styble-container-",
             "editable": {
+                "sectionBg": {
+                    "type": "object",
+                    "default": {
+                        "color": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        },
+                        "hover": {
+                            "style": "bgColor",
+                            "transparent": "",
+                            "solidColor": "",
+                            "gradient": "linear-gradient(135deg,rgba(179,50,95,0.44) 0%,rgba(227,86,43,0.45) 100%)"
+                        }
+                    }
+                },
+                "sectionBgImg": {
+                    "type": "object",
+                    "default": null
+                },
+                "sectionBgImgOverlay": {
+                    "type": "object",
+                    "default": {
+                        "style": "transparent",
+                        "solid": "",
+                        "gradient": ""
+                    }
+                },
+                "sectionBgImgOverlayOpacity": {
+                    "type": "object",
+                    "default": {
+                        "value": 0.5,
+                        "unit": "px"
+                    }
+                },
                 "sectionPadding": {
                     "type": "object",
                     "default": {
@@ -1048,6 +1187,10 @@
                         "column",
                         "column-reverse"
                     ]
+                },
+                "iconListOrderedColor": {
+                    "type": "string",
+                    "default": "#ffffff"
                 }
             },
             "allowedChildren": [
@@ -1088,6 +1231,10 @@
                         "h6",
                         "p"
                     ]
+                },
+                "listTextColor": {
+                    "type": "string",
+                    "default": "var(--styble-text-color)"
                 },
                 "addLink": {
                     "type": "string",
@@ -1327,6 +1474,10 @@
                         "iconName": "check-circle",
                         "image": ""
                     }
+                },
+                "separatorLabelColor": {
+                    "type": "string",
+                    "default": "#333"
                 }
             },
             "allowedChildren": [],

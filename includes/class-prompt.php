@@ -269,6 +269,19 @@ class Styble_AI_Prompt {
 				'- **Always set `sectionPadding` on the section\'s outermost container.** It defaults to zero on all four sides, so a section without it has its text jammed against the edge of the screen and against the section above. A normal band is 80px top and bottom, 24px left and right on Desktop, and 48/16 on Mobile.',
 				'- Use `horizontalGap` / `verticalGap` for the space BETWEEN columns, not padding.',
 				'',
+				'## Background (this is what makes a section read as a band)',
+				'',
+				'- **Give a section a background when the design calls for one** — a dark hero, a tinted testimonial strip, a CTA that has to stand out. Set `sectionBg` on the section\'s outermost container. Without it every section sits on the same page background and the page reads as one undifferentiated column.',
+				'- **Prefer a brand variable to a hex.** Every brand colour slug listed under "Brand context" is also a CSS variable: slug `primary` is `var(--styble-primary)`, `light-neutral` is `var(--styble-light-neutral)`, and so on. A variable tracks the site\'s palette if the owner changes it; a hard-coded hex does not.',
+				'- **A hero can have a photographic background.** Set `sectionBg` style `image` and describe the photo in `sectionBgImg.alt` — see "(background)" under "Attribute value shapes" for the exact shape, including the fallback colour and the overlay that keeps the copy readable. Use one where the brief asks for a photo or an atmosphere; a flat colour is the better default for everything else.',
+				'- **Alternate, do not repeat.** Consecutive sections with the same background are the same as no background at all. A light band between two plain sections does the work; five tinted bands in a row do not.',
+				'- **Recolour EVERY piece of text on a dark background, not just the heading.** Contrast belongs to the whole section, and a block you skip keeps its default dark text on your dark band. Each block has its own attribute: `styble/advanced-text` uses `textFillBg` for the heading and `subHeadingBg` for the sub-heading — both take the `(background)` shape, because Styble paints text by clipping a background to it. `styble/icon-list-item` uses `listTextColor`, `styble/accordion` uses `titleTextColor` and `contentTextColor`, `styble/separator` uses `separatorLabelColor`, `styble/icon-picker` uses `iconColor`, and `styble/icon-list` uses `iconListOrderedColor` for the numbers on an ordered list.',
+				'- **Set `listTextColor` on every `styble/icon-list-item` individually.** There is no list-level colour that reaches the page; one set on the list itself paints nothing.',
+				'- **Leave `btnTextColor` alone unless you are deliberately inverting the button.** A button already arrives filled with the brand colour and light label text from the site\'s global button style, so it reads correctly on a dark band without your help. Setting a dark label on it is the one change that reliably makes a call to action worse.',
+				'- On a light or tinted background, leave all of these alone — the defaults are the brand\'s own text colours and are already right.',
+				'- **A card is a styble/column with its own `sectionBg`.** That is how you build a white panel on a tinted band, or a pricing tier that reads as its own object. Give the card `sectionPadding` too — a column\'s padding is 0 by default, so a background without it puts the copy against the edge of the colour. `sectionBorderRadius` rounds the corners.',
+				'- Contrast the card against the band, not against the page: a tinted section with white cards, or a white section with tinted cards. Do not give the container and its columns the same background — that is the same as giving neither one.',
+				'',
 				'## Size',
 				'',
 				'- Keep it proportionate: at most 6 columns per container and 8 blocks per column.',
@@ -397,6 +410,20 @@ class Styble_AI_Prompt {
 		if ( is_array( $default ) && array_key_exists( 'iconName', $default ) ) {
 			return 'icon';
 		}
+		// Tagged separately from the catch-all "object": a background is the one
+		// object attribute whose useful keys are a level down, so "(object)" would
+		// send the model looking for a flat one.
+		if ( is_array( $default ) && isset( $default['color']['style'] ) ) {
+			return 'background';
+		}
+		// Non-responsive spacing: {value:{top,right,bottom,left}, unit, allChange}.
+		// Left as "(object)" the model reliably guesses a flat {top,right,…} or a
+		// bare number, and the validator rejects both — a tag it can act on is
+		// cheaper than a rejection it has to be corrected out of.
+		if ( is_array( $default ) && isset( $default['value'] ) && is_array( $default['value'] )
+			&& array_key_exists( 'unit', $default ) ) {
+			return 'box';
+		}
 		if ( 'selectImage' === $attr ) {
 			return 'image';
 		}
@@ -417,6 +444,8 @@ class Styble_AI_Prompt {
 		$responsive = null;
 		$box        = null;
 		$icon       = null;
+		$background = null;
+		$flat_box   = null;
 
 		foreach ( $this->catalog->allowlisted_names() as $name ) {
 			foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
@@ -429,6 +458,12 @@ class Styble_AI_Prompt {
 				}
 				if ( 'icon' === $tag && null === $icon ) {
 					$icon = $def['default'];
+				}
+				if ( 'background' === $tag && null === $background ) {
+					$background = $def['default'];
+				}
+				if ( 'box' === $tag && null === $flat_box ) {
+					$flat_box = $def['default'];
 				}
 			}
 		}
@@ -475,12 +510,95 @@ class Styble_AI_Prompt {
 			$lines[] = '';
 		}
 
+		if ( null !== $flat_box ) {
+			$lines[] = '`(box)` — four sides with ONE shared unit, not per-device. Note the sides sit under `value`, and there is no `device` wrapper:';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json(
+				array(
+					'value'     => array(
+						'top'    => 12,
+						'right'  => 12,
+						'bottom' => 12,
+						'left'   => 12,
+					),
+					'unit'      => 'px',
+					'allChange' => true,
+				)
+			);
+			$lines[] = '```';
+			$lines[] = '';
+		}
+
 		if ( null !== $icon ) {
 			$lines[] = '`(icon)` — an object, not an icon name. Put the name in `iconName`:';
 			$lines[] = '';
 			$lines[] = '```json';
 			$lines[] = self::json( $icon );
 			$lines[] = '```';
+			$lines[] = '';
+		}
+
+		if ( null !== $background ) {
+			// Curated rather than dumped, like the (responsive box) example above:
+			// the catalog default carries an empty solidColor and a stock gradient,
+			// which shows the key set but not a usable value. The keys here are the
+			// recorded ones, so the shape still cannot drift from the block.
+			$lines[] = '`(background)` — an object whose useful keys are one level down, under `color`. Set `style` to `bgColor` and put the colour in `solidColor`:';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json(
+				array(
+					'color' => array(
+						'style'      => 'bgColor',
+						'solidColor' => 'var(--styble-light-neutral)',
+					),
+				)
+			);
+			$lines[] = '```';
+			$lines[] = '';
+			$lines[] = 'Or `style` `gradient` with a CSS gradient in `gradient`:';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json(
+				array(
+					'color' => array(
+						'style'    => 'gradient',
+						'gradient' => 'linear-gradient(135deg, var(--styble-primary) 0%, var(--styble-accent) 100%)',
+					),
+				)
+			);
+			$lines[] = '```';
+			$lines[] = '';
+			$lines[] = 'Or `style` `image` for a photographic background. You do not choose the file — describe the photograph in `sectionBgImg.alt` and it is searched for and downloaded after your answer, exactly as `imgAltText` works. Three things go together and all three are required:';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json(
+				array(
+					'sectionBg'                  => array(
+						'color' => array(
+							'style'      => 'image',
+							'solidColor' => 'var(--styble-dark-neutral)',
+						),
+					),
+					'sectionBgImg'               => array( 'alt' => 'sunlit coffee shop interior with wooden tables' ),
+					'sectionBgImgOverlay'        => array(
+						'style' => 'solid-overlay',
+						'solid' => 'rgba(0,0,0,0.55)',
+					),
+					'sectionBgImgOverlayOpacity' => array(
+						'value' => 0.55,
+						'unit'  => 'px',
+					),
+				)
+			);
+			$lines[] = '```';
+			$lines[] = '';
+			$lines[] = '- `solidColor` is the **fallback** and is not optional. Photo search can be switched off or find nothing, and without a colour behind it the section would render no background at all.';
+			$lines[] = '- The **overlay is what makes the copy readable.** Light text over an unknown photograph is a coin flip; a dark scrim at 0.5–0.6 makes it safe. `sectionBgImgOverlay.style` is `solid-overlay` or `transparent`, and the colour key is `solid` — not `solidColor`.';
+			$lines[] = '- Put **nothing but `alt`** in `sectionBgImg`. No url, no id. Write the description as a subject, two to eight concrete words, the same way you would for an advanced-image.';
+			$lines[] = '';
+			$lines[] = 'Legal `style` values are `bgColor`, `gradient`, `image` and `transparent`. `video` is rejected — there is no stock video library behind it, so it would render nothing. Omit `hover` entirely; a generated section has no hover state to design.';
 			$lines[] = '';
 		}
 

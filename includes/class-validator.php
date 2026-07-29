@@ -48,6 +48,62 @@ class Styble_AI_Validator {
 	const DEVICES = array( 'Desktop', 'Tablet', 'Mobile' );
 	const SIDES   = array( 'top', 'right', 'bottom', 'left' );
 
+	/**
+	 * Background styles the AI may choose.
+	 *
+	 * `image` is here, but conditionally: it is only legal alongside a description
+	 * in sectionBgImg.alt and a fallback colour, because the photo itself is filled
+	 * in after validation. See check_background_image().
+	 */
+	const BACKGROUND_STYLES = array( 'bgColor', 'gradient', 'transparent', 'image' );
+
+	/**
+	 * Styles that need media the AI cannot ask for.
+	 *
+	 * `video` has no stock-video pipeline behind it the way `image` has
+	 * Styble_AI_Media, so a video background would resolve to `none` and paint
+	 * nothing. Split out so the error can say why rather than only what.
+	 */
+	const BACKGROUND_MEDIA_STYLES = array( 'video' );
+
+	/**
+	 * The only key the AI may put in a background image object.
+	 *
+	 * Everything else — url, id, sizes, focalPoint, scale — is written by
+	 * Styble_AI_Media after validation, from the attachment it created.
+	 */
+	const BACKGROUND_IMAGE_KEY = 'alt';
+
+	/**
+	 * The background attribute that may carry a photograph, and its companion.
+	 *
+	 * An image style is only meaningful where BOTH exist on the same block: the
+	 * style says "paint a photo" and the companion says which one. Anywhere else
+	 * the style resolves to the literal `none`.
+	 */
+	const BACKGROUND_ATTR       = 'sectionBg';
+	const BACKGROUND_IMAGE_ATTR = 'sectionBgImg';
+
+	/**
+	 * Styles legal on a background that has no image companion.
+	 */
+	const BACKGROUND_STYLES_NO_IMAGE = array( 'bgColor', 'gradient', 'transparent' );
+
+	/**
+	 * Overlay styles that behave correctly in Styble Pro.
+	 *
+	 * The inspector offers no-overlay, solid-overlay and gradient-overlay, and
+	 * Css_Helpers::color_controls() has a case for none of them — so it falls to
+	 * its default branch and returns the SOLID colour for all three. That makes
+	 * `gradient-overlay` paint a solid, and `no-overlay` paint one too, because
+	 * has_active_section_bg_overlay() treats any style except blank or
+	 * `transparent` as active. Only these two do what their name says, so the AI
+	 * gets only these two — the control's own list is deliberately not used, and
+	 * the catalog's default check already rejected it (default `transparent` is
+	 * not a member of it).
+	 */
+	const OVERLAY_STYLES = array( 'transparent', 'solid-overlay' );
+
 	const CONTAINER = 'styble/container';
 	const COLUMN    = 'styble/column';
 	const IMAGE     = 'styble/advanced-image';
@@ -273,6 +329,10 @@ class Styble_AI_Validator {
 
 		$attrs = $this->read_attrs( $node, $path );
 		$this->validate_attrs( $name, $attrs, $path . '.attrs' );
+		// Cross-attribute, so it cannot live in validate_attrs(): an image
+		// background is only legal in combination with the description that will
+		// fill it and the colour that covers for it if filling fails.
+		$this->check_background_image( $name, $attrs, $path . '.attrs' );
 		// Outside validate_attrs() on purpose: that returns early on an empty
 		// attribute bag, and a content block with NO attributes at all is the
 		// exact failure this catches.
@@ -603,6 +663,14 @@ class Styble_AI_Validator {
 			return;
 		}
 
+		// Background shapes: {color:{style,…}, hover:{style,…}}. Checked before the
+		// generic key comparison below because that only looks at the TOP level,
+		// and everything that matters about a background is one level down.
+		if ( self::is_background_default( $default ) ) {
+			$this->check_background_shape( $value, $default, $path, $attr );
+			return;
+		}
+
 		// Everything else (icon, colors, non-responsive spacing) is a fixed key set.
 		foreach ( array_keys( $value ) as $key ) {
 			if ( ! array_key_exists( $key, $default ) ) {
@@ -617,6 +685,106 @@ class Styble_AI_Validator {
 		// Non-responsive spacing: {value:{top,right,bottom,left}, unit, allChange}.
 		if ( isset( $default['value'] ) && is_array( $default['value'] ) && isset( $value['value'] ) ) {
 			$this->check_sides( $value['value'], $path . '.value', $attr );
+		}
+	}
+
+	/**
+	 * Does this catalog default describe a background?
+	 *
+	 * Recognised by structure rather than by attribute name, because Styble Pro
+	 * builds every one of them from the same Att_Utils::background() factory —
+	 * so any future background attribute is covered without a list to maintain.
+	 *
+	 * @param mixed $default Catalog default.
+	 *
+	 * @return bool
+	 */
+	private static function is_background_default( $default ) {
+		return is_array( $default )
+			&& isset( $default['color'] ) && is_array( $default['color'] )
+			&& array_key_exists( 'style', $default['color'] )
+			&& array_key_exists( 'solidColor', $default['color'] )
+			&& array_key_exists( 'gradient', $default['color'] );
+	}
+
+	/**
+	 * Validate a {color:{style,…}, hover:{…}} background value.
+	 *
+	 * The generic key comparison in check_shape() would pass anything at all here:
+	 * `color` and `hover` are the only top-level keys and both are legal, so a
+	 * tree could set style to any string and never be questioned. Everything that
+	 * decides whether a background actually paints lives one level down.
+	 *
+	 * `image` and `video` are refused rather than merely discouraged. Both read
+	 * their media out of a SEPARATE attribute (sectionBgImg), which is not on the
+	 * AI allowlist because the model may never invent a media reference. Styble
+	 * Pro's Css_Helpers::color_controls() maps a style of "image" with no URL to
+	 * the literal `none`, so the section would render with no background and no
+	 * error anywhere — the same invisible-failure class as a placeholder-filled
+	 * tree, and refused for the same reason.
+	 *
+	 * @param array  $value   Supplied value.
+	 * @param array  $default Catalog default.
+	 * @param string $path    JSON path.
+	 * @param string $attr    Attribute name.
+	 *
+	 * @return void
+	 */
+	private function check_background_shape( $value, $default, $path, $attr ) {
+		foreach ( $value as $state => $inner ) {
+			if ( ! array_key_exists( $state, $default ) ) {
+				$this->result->add(
+					'attr_shape',
+					$path . '.' . $state,
+					"\"{$attr}\" has no key \"{$state}\". Expected keys: " . implode( ', ', array_keys( $default ) ) . '.'
+				);
+				continue;
+			}
+
+			if ( ! self::is_map( $inner ) ) {
+				$this->result->add(
+					'attr_shape',
+					$path . '.' . $state,
+					"\"{$attr}.{$state}\" must be an object with a \"style\", got " . self::describe( $inner ) . '.'
+				);
+				continue;
+			}
+
+			foreach ( array_keys( $inner ) as $key ) {
+				if ( ! array_key_exists( $key, $default[ $state ] ) ) {
+					$this->result->add(
+						'attr_shape',
+						$path . '.' . $state . '.' . $key,
+						"\"{$attr}.{$state}\" has no key \"{$key}\". Expected keys: "
+							. implode( ', ', array_keys( $default[ $state ] ) ) . '.'
+					);
+				}
+			}
+
+			if ( ! array_key_exists( 'style', $inner ) ) {
+				continue;
+			}
+
+			$style = $inner['style'];
+			if ( ! is_string( $style ) ) {
+				$this->add_type_error( $path . '.' . $state . '.style', $attr . '.' . $state . '.style', 'string', $style );
+				continue;
+			}
+			// Blank means "leave it to the block", as everywhere else.
+			if ( '' === $style || in_array( $style, self::BACKGROUND_STYLES, true ) ) {
+				continue;
+			}
+
+			$reason = in_array( $style, self::BACKGROUND_MEDIA_STYLES, true )
+				? " A \"{$style}\" background needs a media reference the AI may not set, and would render nothing."
+				: '';
+
+			$this->result->add(
+				'attr_value',
+				$path . '.' . $state . '.style',
+				"\"{$attr}.{$state}.style\" must be one of: " . implode( ', ', self::BACKGROUND_STYLES )
+					. "; got \"{$style}\"." . $reason
+			);
 		}
 	}
 
@@ -746,6 +914,139 @@ class Styble_AI_Validator {
 				'image_not_placeholder',
 				$path . '.selectImageId',
 				'AI output must leave selectImageId empty; the user picks the attachment.'
+			);
+		}
+	}
+
+	/**
+	 * A background image must be a fillable placeholder with something behind it.
+	 *
+	 * The contract's media rule does not bend for backgrounds: the model writes a
+	 * description and never a URL or an id. What makes `image` usable rather than
+	 * merely legal is the pipeline behind it — Styble_AI_Media reads the
+	 * description, downloads a photo, and writes the url and attachment id AFTER
+	 * validation, exactly as it does for advanced-image.
+	 *
+	 * Three things are therefore required together, and none of them is optional:
+	 *
+	 *  1. A description in sectionBgImg.alt, or there is nothing to search for.
+	 *  2. Nothing else in sectionBgImg, or the model has invented media.
+	 *  3. A fallback solidColor. Image filling is off unless a stock-photo
+	 *     provider is configured, and every failure is non-fatal by design — so
+	 *     without a fallback the section would resolve to `background: none` and
+	 *     paint nothing at all. With one, a failed download degrades to a plain
+	 *     coloured band, which is a section that still works.
+	 *
+	 * @param array  $attrs Node attributes.
+	 * @param string $path  JSON path of the attrs bag.
+	 *
+	 * @return void
+	 */
+	private function check_background_image( $name, $attrs, $path ) {
+		// Every background-shaped attribute on this block, not just sectionBg.
+		// styble/advanced-text paints its heading through textFillBg and its
+		// sub-heading through subHeadingBg, both the same shape — and neither has an
+		// image companion, so an image style on either is refused below rather than
+		// silently producing `background: none` clipped to the text, which renders
+		// the heading INVISIBLE.
+		foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
+			if ( ! array_key_exists( $attr, $attrs ) || ! self::is_map( $attrs[ $attr ] ) ) {
+				continue;
+			}
+			if ( ! self::is_background_default( isset( $def['default'] ) ? $def['default'] : null ) ) {
+				continue;
+			}
+			$style = isset( $attrs[ $attr ]['color']['style'] ) ? $attrs[ $attr ]['color']['style'] : '';
+			if ( 'image' !== $style ) {
+				continue;
+			}
+			// An image background needs a companion image attribute on the SAME
+			// block. Only the section container has one, so this is what stops the
+			// model choosing a photo for a heading or a card and being sent round a
+			// loop between "needs sectionBgImg" and "sectionBgImg is not editable".
+			if ( self::BACKGROUND_ATTR !== $attr || ! array_key_exists( self::BACKGROUND_IMAGE_ATTR, $this->catalog->editable_attrs( $name ) ) ) {
+				$this->result->add(
+					'attr_value',
+					$path . '.' . $attr . '.color.style',
+					"\"{$attr}.color.style\" cannot be \"image\" on \"{$name}\" — only a section container can carry a photograph. "
+						. 'Use ' . implode( ', ', self::BACKGROUND_STYLES_NO_IMAGE ) . ' here, and put the photograph on the section instead.'
+				);
+				// Stop here for this node. The checks below would otherwise demand a
+				// description and a fallback colour for an image this block can never
+				// have, and the corrective retry would chase an attribute that is not
+				// editable on it — two errors pointing in opposite directions.
+				return;
+			}
+		}
+
+		$overlay = isset( $attrs['sectionBgImgOverlay'] ) ? $attrs['sectionBgImgOverlay'] : null;
+		if ( self::is_map( $overlay ) && isset( $overlay['style'] ) && is_string( $overlay['style'] )
+			&& '' !== $overlay['style'] && ! in_array( $overlay['style'], self::OVERLAY_STYLES, true ) ) {
+			$this->result->add(
+				'attr_value',
+				$path . '.sectionBgImgOverlay.style',
+				'"sectionBgImgOverlay.style" must be one of: ' . implode( ', ', self::OVERLAY_STYLES )
+					. '; got "' . $overlay['style'] . '". The other values the block offers all render a solid colour regardless of their name.'
+			);
+		}
+
+		$style = isset( $attrs['sectionBg']['color']['style'] ) ? $attrs['sectionBg']['color']['style'] : '';
+		$img   = isset( $attrs['sectionBgImg'] ) ? $attrs['sectionBgImg'] : null;
+
+		if ( 'image' !== $style ) {
+			// A description with no image style is a wasted download, not an error —
+			// but media the model invented is still media the model invented.
+			if ( self::is_map( $img ) ) {
+				$this->check_background_image_keys( $img, $path );
+			}
+			return;
+		}
+
+		if ( ! self::is_map( $img ) || '' === trim( (string) ( isset( $img['alt'] ) ? $img['alt'] : '' ) ) ) {
+			$this->result->add(
+				'content_empty',
+				$path . '.sectionBgImg',
+				'A background with style "image" needs sectionBgImg.alt describing the photograph you want, e.g. '
+					. '{"alt": "sunlit coffee shop interior"}. That description is used verbatim to search a stock photo library.'
+			);
+		}
+
+		// Unconditionally, not in an else: a missing description and an invented URL
+		// are two separate mistakes, and reporting only the first would let the
+		// second through on the corrective retry.
+		if ( self::is_map( $img ) ) {
+			$this->check_background_image_keys( $img, $path );
+		}
+
+		$fallback = isset( $attrs['sectionBg']['color']['solidColor'] ) ? trim( (string) $attrs['sectionBg']['color']['solidColor'] ) : '';
+		if ( '' === $fallback ) {
+			$this->result->add(
+				'content_empty',
+				$path . '.sectionBg.color.solidColor',
+				'A background with style "image" also needs solidColor set as a fallback. Stock photo filling can be '
+					. 'switched off or fail, and without a colour behind it the section would render no background at all.'
+			);
+		}
+	}
+
+	/**
+	 * The AI may put only a description in a background image object.
+	 *
+	 * @param array  $img  sectionBgImg value.
+	 * @param string $path JSON path of the attrs bag.
+	 *
+	 * @return void
+	 */
+	private function check_background_image_keys( array $img, $path ) {
+		foreach ( array_keys( $img ) as $key ) {
+			if ( self::BACKGROUND_IMAGE_KEY === $key ) {
+				continue;
+			}
+			$this->result->add(
+				'image_not_placeholder',
+				$path . '.sectionBgImg.' . $key,
+				'AI output must put only "' . self::BACKGROUND_IMAGE_KEY . '" in sectionBgImg and never invent a media '
+					. 'URL or id; the photo is filled in afterwards. Remove "' . $key . '".'
 			);
 		}
 	}

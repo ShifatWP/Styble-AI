@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "children": [
+      {
+        "block": "styble/column",
+        "attrs": {
+          "sectionBg": { "color": { "style": "bgColor", "solidColor": "var(--styble-white)" } },
+          "sectionBorderRadius": { "top": 12, "right": 12, "bottom": 12, "left": 12 }
+        },
+        "children": [
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "Radius sent as a flat box", "textHTMLTag": "h3" } }
+        ]
+      }
+    ]
+  }
+}

@@ -60,31 +60,89 @@ $editable = array(
 	// above. Every generated page looked broken until this was exposed.
 	// No 'align': it already defaults to "full", and full-bleed requires exactly
 	// that value, so the only thing exposing it can do is take it away.
-	'container'       => array( 'layout', 'layoutSelected', 'columns', 'direction', 'flexWrap', 'horizontalGap', 'verticalGap', 'containerWidth', 'containerCustomWidth', 'sectionPadding' ),
-	'column'          => array( 'columnWidth', 'columnFlex' ),
-	'advanced-text'   => array( 'advancedTextContent', 'textHTMLTag', 'subHeading', 'subHeadingContent', 'subHeadingHTMLTag', 'textAliment', 'advancedTextColor' ),
+	// sectionBg is what makes a section read as a band rather than a run of text
+	// on the page background — a dark hero, a tinted testimonial strip, a CTA
+	// that stands out. Without it the model could compose a correct tree that
+	// still looked like one undifferentiated column of copy.
+	//
+	// sectionBgImg carries a photographic background. The model never sets a url
+	// or an id in it — it writes a description in `alt`, exactly as it does for
+	// advanced-image, and Styble_AI_Media fills the rest AFTER validation.
+	// sectionBgImgOverlay is not decoration: light hero copy over an arbitrary
+	// photograph is a coin flip without a scrim over it.
+	//
+	// Normal state only throughout. The hover twins of all four exist, but a
+	// generated section has no hover state to design.
+	'container'       => array( 'layout', 'layoutSelected', 'columns', 'direction', 'flexWrap', 'horizontalGap', 'verticalGap', 'containerWidth', 'containerCustomWidth', 'sectionPadding', 'sectionBg', 'sectionBgImg', 'sectionBgImgOverlay', 'sectionBgImgOverlayOpacity' ),
+	// A column background is what turns a column into a card — a white panel on a
+	// tinted band, a pricing tier that reads as its own object. sectionPadding
+	// comes with it out of necessity, not ambition: it defaults to 0 on all four
+	// sides, so a background with no padding renders the copy flush against the
+	// tint edge. That is not a styling preference, it is a broken-looking card,
+	// which is why both appliers also backstop it (see DEFAULT_CARD_PADDING).
+	// sectionBorderRadius is the one genuinely optional member of the set; square
+	// corners are a fair choice, but without it the model cannot make a rounded
+	// card at all.
+	'column'          => array( 'columnWidth', 'columnFlex', 'sectionBg', 'sectionPadding', 'sectionBorderRadius' ),
+	// advancedTextColor is NOT here, and it is the obvious-looking choice: it is
+	// declared in block.json with a sensible default and read by nothing at all —
+	// not the frontend, not the editor's dynamicCss. The AI set it for weeks and
+	// the text never changed colour.
+	//
+	// The heading is painted by textFillBg and the sub-heading by subHeadingBg,
+	// both applied as a `background` with background-clip:text, which is why they
+	// carry the background shape rather than a plain colour string.
+	'advanced-text'   => array( 'advancedTextContent', 'textHTMLTag', 'subHeading', 'subHeadingContent', 'subHeadingHTMLTag', 'textAliment', 'textFillBg', 'subHeadingBg' ),
+	// Text colour, one attribute per block that renders text.
+	//
+	// advanced-text was the only block whose text the AI could recolour, which
+	// made a dark band half-usable: the heading went light and the button label,
+	// the list items and the FAQ titles stayed at their default dark. Contrast is
+	// not a per-block nicety, it is a property of the section, so every block that
+	// draws text needs the knob.
+	//
+	// Normal state only. Every one of these has a Hover and several an Active
+	// twin; a generated section has no hover state to design, and a wrong hover
+	// colour is worse than an inherited one because nobody sees it until they
+	// point at it.
+	//
+	// accordion.itemTextColor is deliberately left out. It sits alongside
+	// titleTextColor with an empty default and no comment in Styble Pro that says
+	// which element it paints — and shipping a control whose effect is unverified
+	// is how sectionBgImgOverlay's broken modes nearly got exposed.
+	//
+	// The attributes themselves are on their own blocks below: btnTextColor,
+	// iconListOrderedColor, listTextColor, titleTextColor, contentTextColor,
+	// separatorLabelColor. Every one was checked against the render path before
+	// being exposed — two candidates that looked perfectly reasonable in
+	// block.json turned out to be read by nothing and were dropped.
+
 	// No 'wrap': advanced-buttons/dynamicCss.js hardcodes flex-wrap:wrap and
 	// never reads the attribute. Offering a knob that does nothing invites the
 	// model to "fix" a layout with it.
 	'advanced-buttons'=> array( 'direction', 'justify', 'gap', 'fullWidth' ),
-	'advanced-button' => array( 'labelText', 'showLabel', 'addLink', 'buttonIcon', 'iconPosition', 'iconSize' ),
+	'advanced-button' => array( 'labelText', 'showLabel', 'addLink', 'buttonIcon', 'iconPosition', 'iconSize', 'btnTextColor' ),
 	'advanced-image'  => array( 'selectImage', 'selectImageId', 'imgAltText', 'imgAspectRatio', 'imgResolution', 'addLink' ),
 	// No 'id' (an internal number) and no 'infoBoxPosition' (declared in
 	// block.json, read by nothing in JS or PHP).
 	'info-box'        => array( 'layoutType', 'contentAlign', 'showBadge', 'badgeText', 'badgePosition', 'gapBetween' ),
 	'icon-picker'     => array( 'featuredIcon', 'iconColor', 'iconSize' ),
-	'separator'       => array( 'separatorType', 'separatorLabelEnable', 'separatorText', 'separatorIconEnable', 'separatorIcon' ),
+	'separator'       => array( 'separatorType', 'separatorLabelEnable', 'separatorText', 'separatorIconEnable', 'separatorIcon', 'separatorLabelColor' ),
 	// No 'iconOrderedStyle': its values are CSS counter styles (decimal,
 	// lower-roman…), which no inspector array records, so it would be the one
 	// string attribute the model could still invent a value for.
-	'icon-list'       => array( 'layoutType', 'iconType', 'iconPosition', 'listGap' ),
-	'icon-list-item'  => array( 'listText', 'listTextTag', 'listIcon', 'addLink' ),
+	// No 'iconListTextcolor': like advancedTextColor it is declared, defaulted, and
+	// read by nothing. The list-level colour exists only as an editor hook that
+	// writes into each item's listTextColor on mount, so the item attribute is the
+	// only one that paints. The appliers do that write themselves.
+	'icon-list'       => array( 'layoutType', 'iconType', 'iconPosition', 'listGap', 'iconListOrderedColor' ),
+	'icon-list-item'  => array( 'listText', 'listTextTag', 'listIcon', 'addLink', 'listTextColor' ),
 	// FAQs are the single most requested section the v1 allowlist could not
 	// build. Without these the model flattened questions and answers into loose
 	// advanced-text blocks, which is what it should do when an accordion is not
 	// available — and looked broken. Kept deliberately small: the accordion has
 	// 219 attributes and 216 of them are styling.
-	'accordion'       => array( 'titleHtmlTag', 'titleAlignment', 'multipleOpen', 'toggleIconAlignment' ),
+	'accordion'       => array( 'titleHtmlTag', 'titleAlignment', 'multipleOpen', 'toggleIconAlignment', 'titleTextColor', 'contentTextColor' ),
 	'accordion-item'  => array( 'accordionTitle', 'keepOpen' ),
 );
 

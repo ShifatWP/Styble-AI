@@ -55,6 +55,72 @@
 	};
 
 	/**
+	 * Padding given to a column that has a background but set no padding.
+	 *
+	 * sectionPadding is zero on all four sides for a column too, so a tinted or
+	 * white column with no padding renders its copy flush against the edge of the
+	 * tint — a card that looks broken, in the same silent way an unpadded section
+	 * did. Tighter and even, unlike the section band above: a card is padded
+	 * inward on all four sides rather than given a vertical rhythm.
+	 *
+	 * Kept in step with DEFAULT_CARD_PADDING in includes/class-page-applier.php.
+	 */
+	var CARD_PADDING = {
+		device: {
+			Desktop: { top: 32, right: 32, bottom: 32, left: 32 },
+			Tablet: { top: 28, right: 28, bottom: 28, left: 28 },
+			Mobile: { top: 24, right: 24, bottom: 24, left: 24 },
+		},
+		unit: { Desktop: 'px', Tablet: 'px', Mobile: 'px' },
+	};
+
+	/**
+	 * Does this attribute bag carry a background that will actually paint?
+	 *
+	 * A style of bgColor with an empty solidColor is what the block ships by
+	 * default and paints nothing, so it must not trigger the padding backstop.
+	 *
+	 * @param {Object} attrs Node attributes.
+	 * @return {boolean} True when a background will render.
+	 */
+	function hasBackground( attrs ) {
+		var color = attrs && attrs.sectionBg && attrs.sectionBg.color;
+		if ( ! color ) {
+			return false;
+		}
+		if ( 'gradient' === color.style ) {
+			return !! ( color.gradient && String( color.gradient ).trim() );
+		}
+		if ( 'bgColor' === color.style ) {
+			return !! ( color.solidColor && String( color.solidColor ).trim() );
+		}
+		return false;
+	}
+
+	/**
+	 * Give a column that has a background the padding that makes it a card.
+	 *
+	 * Only when there is a background AND no padding of its own: a column with no
+	 * background wants no padding (the gap between columns does that work), and a
+	 * model-supplied value is never overwritten.
+	 *
+	 * @param {Object} node Tree node.
+	 * @return {Object} The node, with card padding guaranteed where it applies.
+	 */
+	function withCardPadding( node ) {
+		if ( ! node || node.block !== COLUMN_BLOCK ) {
+			return node;
+		}
+		var attrs = node.attrs || {};
+		if ( ! hasBackground( attrs ) || attrs.sectionPadding ) {
+			return node;
+		}
+		return Object.assign( {}, node, {
+			attrs: Object.assign( {}, attrs, { sectionPadding: CARD_PADDING } ),
+		} );
+	}
+
+	/**
 	 * Layouts injected by PHP (wp_add_inline_script). Only the layout table is
 	 * shipped to the browser, not the whole catalog — it is all the applier needs,
 	 * since the tree was already validated server-side.
@@ -278,6 +344,7 @@
 		if ( ! node || 'string' !== typeof node.block ) {
 			throw new Error( 'Styble AI: tree node has no block name.' );
 		}
+		node = withCardPadding( node );
 		if ( node.block === CONTAINER_BLOCK ) {
 			return buildContainer( node );
 		}

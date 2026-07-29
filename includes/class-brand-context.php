@@ -124,7 +124,16 @@ class Styble_AI_Brand_Context {
 			return '';
 		}
 
+		// The old wording here was "Never invent hex values — the blocks pick up
+		// brand colours on their own." That was true while no colour attribute was
+		// AI-editable, and became a contradiction the moment sectionBg was: the
+		// model was being handed a colour to set and told not to set one.
+		//
+		// Every slug above is also emitted as a CSS custom property by
+		// Global_Settings_Helper, so naming the variable is strictly better than
+		// naming the hex — it survives the owner re-theming the site.
 		return implode( "\n", $lines )
-			. "\nWrite copy that suits this palette and scale. Never invent hex values — the blocks pick up brand colours on their own.";
+			. "\nEach slug above is also a CSS variable: primary is var(--styble-primary), light-neutral is var(--styble-light-neutral), and so on for every slug listed."
+			. "\nWhen you set a colour, name the variable rather than copying the hex — it keeps the section on-brand if the palette changes. Do not invent colours outside this palette.";
 	}
 }

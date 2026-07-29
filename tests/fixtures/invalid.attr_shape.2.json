@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "root": {
+    "block": "styble/container",
+    "attrs": {
+      "sectionBg": { "color": { "style": "bgColor", "backgroundColor": "#101828" } }
+    },
+    "children": [
+      {
+        "block": "styble/column",
+        "children": [
+          { "block": "styble/advanced-text", "attrs": { "advancedTextContent": "Wrong key name", "textHTMLTag": "h1" } }
+        ]
+      }
+    ]
+  }
+}
