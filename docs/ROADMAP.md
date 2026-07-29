@@ -1,6 +1,6 @@
 # Styble AI — roadmap and progress
 
-**Updated:** 2026-07-29 · **Branch:** `ai-evals` · **Contract:** `emit_layout` 0.1.0
+**Updated:** 2026-07-29 (evening) · **Branch:** `ai-evals` · **Contract:** `emit_layout` 0.1.0
 
 This file tracks **where the experiment actually is**. It does not restate the
 reasoning — that lives in [`EXPERIMENT_PLAN.md`](EXPERIMENT_PLAN.md), which owns the
@@ -15,18 +15,24 @@ meets the bar that was stated before the run.
 
 ## Status at a glance
 
-> **Headline: no baseline exists yet.** Stage 0's harness is built and its scorers
-> work, but `evals/runs/` is empty. Until a live run lands there, every claim about
-> output quality in this project is an eyeball, and every later stage has nothing
-> to be measured against.
+> **Headline: the number is 65–75%, and the spread is the finding.** Two full runs
+> of the 20-case section suite on `mistral-large-latest`, retry off, nothing changed
+> between them: **15/20 then 13/20**. Every failure was a contract violation, not a
+> quality judgement — every scorer that ran on a valid tree passed both times.
+>
+> ±10 points of run-to-run variance means **a single run cannot detect a real
+> change**. Any prompt edit scoring 70% next week is inside the noise. That is now
+> the central constraint on how this experiment can be run, and it is not
+> fixable by a better scorer — the model is non-deterministic and the
+> OpenAI-compatible path sends `temperature: 0.7`.
 
 | | Stage | Question | Bar | Status |
 |---|---|---|---|---|
-| **0** | The measuring stick | Can we tell better from worse? | Byte-identical rescore · baseline on both models · breaking the prompt lowers the number | 🟡 **Harness built, bar unmet** |
+| **0** | The measuring stick | Can we tell better from worse? | A baseline exists · ≥3 runs so the spread is known · breaking the prompt moves the number beyond that spread | 🟡 **Baseline taken, spread not yet bounded** |
 | **1** | Block choice | Right blocks from plain words? | ≥90% target · ≥80% floor · n≥30 | ⚪ Not started |
-| **2** | Attribute edit | Right attr → right value, nothing else? | ≥90% key+value · **0% collateral** | ⚪ Not started |
-| **3** | One section | Blocks + attrs + layout composed | ≥85% first-try valid · 100% after retry · ≥80% "would ship" | ⚪ Not started (baseline is this stage) |
-| **4** | ⭐ Conversational edit | Change one thing, nothing else moves | ≥90% intended · 0% collateral · ≤6 tool calls | ⚪ Not started |
+| **2** | Attribute edit | Right attr → right value, nothing else? | ≥90% key+value · **0% collateral** | 🟡 **Model + tools built, 38 checks; eval suite not written** |
+| **3** | One section | Blocks + attrs + layout composed | ≥85% first-try valid · 100% after retry · ≥80% "would ship" | 🔴 **65–75% first-try — below the bar** |
+| **4** | ⭐ Conversational edit | Change one thing, nothing else moves | ≥90% intended · 0% collateral · ≤6 tool calls | ⚪ Not started — `update_block` exists, the loop does not |
 | **5** | Whole pages | Does a page hold together? | ≥80% need no structural edit | ⚪ Built, unmeasured |
 | **6** | Distribution (MCP) | — | — | ⚪ Deferred until 4 passes |
 
@@ -42,88 +48,133 @@ every stage sits on.
 | Piece | Evidence | Trust |
 |---|---|---|
 | `catalog/catalog.json` generated from Styble Pro | Regenerates; self-verifying. 23 blocks, **13 allowlisted**, 63 editable attrs, 23 layouts | **High** |
-| `emit_layout` contract + validator | **31 error codes, 34 fixtures**, coverage check asserts every code has one | **High** — checks legality, not quality |
-| Headless applier (`uniqueId`, layout maths) | **36 checks**; verified in a real WP install | **High** |
+| `emit_layout` contract + validator | **31 error codes, 47 fixtures**, coverage check asserts every code has one | **High** — checks legality, not quality |
+| Headless applier (`uniqueId`, layout maths, card padding) | **42 checks**; verified in a real WP install | **High** |
 | Editor applier (`createBlock` → `insertBlocks`) | Shares the catalog layout table; maths mirrored line-for-line | **High** |
+| Canonical page model (uid addressing, `get_block`/`update_block`) | **38 checks**. Resolved uids compared against the applier's own output, so the two cannot drift | **High** |
+| Request body + cache prefix | **24 checks** — breakpoint placement, byte-identical prefix across a retry | **High** |
 | Retry loop | **7 cases** against a stub provider | **High** |
 | Prompt + tool schema invariants | **33 checks** | **High** |
 | Providers (Anthropic + 9 OpenAI-compatible) | Runs | **Medium** — no 429 handling in the plugin (deliberate) |
 | Stock photo fill | Runs; every failure non-fatal and reported | **Medium** |
-| Section generation from a prompt | Runs | **Unknown — never measured** |
+| Section generation from a prompt | **65–75% first-try valid**, n=20, two runs | **Measured, below bar** |
 | Whole-page chat screen | Runs | **Unknown — never measured** |
 | "Edit with AI" on a selection | Runs | **Low** — regenerates the whole selection (the deck's naive column) |
 
-Measured prompt surface, as of this commit:
+Six WP-free suites, **164 checks**, all passing.
+
+Measured prompt surface, 2026-07-29:
 
 ```
-system prompt   9,771 chars  (~2,641 tokens)
-tool schema    11,039 chars  (~2,984 tokens)   node expanded to depth 6
-cacheable prefix         21,522 bytes  (~5,817 tokens)
+system prompt   15,380 chars  (~4,157 tokens)
+tool schema     11,039 chars  (~2,984 tokens)   node expanded to depth 6
+per request     26,419 chars  (~7,140 tokens)   sent in full on EVERY call
 ```
+
+The system prompt grew 57% today (9,771 → 15,380) adding background, card and
+text-colour guidance. Whether that bought anything is unmeasured: the baseline
+was taken after the growth, not before, so there is no before to compare to.
 
 ---
 
 ## Stage 0 — the measuring stick 🟡
 
-Built in `c9b7b3b`. The harness exists and its parts work; the *stage* is not done.
+Built in `c9b7b3b`, stripped of persistence 2026-07-29 by decision (see the log).
+The baseline exists; what is not yet known is how wide the noise band is.
 
 **Done**
 
 - [x] `evals/section/cases.json` — **20 cases**, each with a `why` naming what it catches
-- [x] `scripts/eval.php` — runs a suite, scores it, writes a run record
-- [x] Response cache keyed on `sha1(model | retries | prompt | system_prompt | tool_schema)` — a catalog regeneration or prompt edit **must** miss, or the number is a lie
+- [x] `scripts/eval.php` — runs a suite, scores it, prints the result
 - [x] Retry **off by default** (`retries=0`) — with it on, a model that never gets it right first time scores like one that always does
 - [x] `Styble_AI_Eval_Patient_Provider` — reads the delay a 429 asks for and waits it out. Deliberately *not* in the plugin, where a 429 should reach the user fast
-- [x] `live=1` required to touch the network — a mistyped argument cannot spend money
-- [x] Run records carry **no timestamp**, so two runs of the same cases are byte-identical
-- [x] `compare=A with=B` — per-case FIXED / REGRESS
+- [x] `live=1` required — every run spends real tokens, so a mistyped argument must not start one
+- [x] Provider/key mismatch **refuses to run**. There is one shared key option, so `provider=X` moves the endpoint but never the credential; a mismatch used to fail all 20 cases on auth and read like a catastrophic model score
 - [x] Deterministic scorers: `valid`, `counts`, `mustContain` / `mustNotContain`, `minOf` / `maxOf`, `layoutIn`, `headingTags`, `copyMustMention`, `attrEquals`, plus universal `noPlaceholder` and soft `padding` / `preferContain`
-- [x] **Prefix caching on the Anthropic path** — one `cache_control` breakpoint on the last system block covers tools + system (render order is `tools` → `system` → `messages`). Verified byte-identical across a first attempt and a corrective retry. `[cache w:N r:N in:N]` printed per live case, because a zero read means a silent invalidator and nothing else would say so *(uncommitted)*
-
-**Prerequisite, found 2026-07-29 while trying to verify the caching live**
-
-The plan says "take the baseline" and assumes the models are reachable. They are not.
-`class-provider-factory.php:27` reads a single shared `styble_ai_api_key`, and this
-install holds a **Mistral** key with provider `mistral`.
-
-| | Blocker | State |
-|---|---|---|
-| B1 | No Anthropic key → target `claude-opus-5` unreachable. Prefix caching is therefore **inert** here | ❌ open |
-| B2 | No Gemini key → floor `gemini-2.0-flash` unreachable | ❌ open |
-| B3 | One shared key option → cannot hold two providers at once, so passes must run sequentially with a swap | ❌ open |
-| B4 | Could `mistral-large-latest` satisfy this schema at all? `llama-3.3-70b` could not | ✅ **resolved** |
-
-**B4 resolved by one live call, 2026-07-29.** `hero-basic` came back **valid on the first
-try** — 7 nodes, 7/7 case expectations, 6.0s, `sectionPadding` set by the model rather
-than backstopped. Mistral is a viable eval model. A single-model baseline is possible
-now; the two-model split is not.
+- [x] Per-case token accounting printed, so a silent cache invalidation on the Anthropic path is visible
+- [x] **The baseline, twice** — see below
 
 **Not done — this is the bar**
 
-- [ ] **Take the baseline.** `evals/runs/` is empty. Retry off. Two models if reachable, one recorded as a substitution if not
-- [ ] **Demonstrate** the byte-identical rescore (needs two runs to diff, not just the absence of a clock)
-- [ ] **Falsify it** — deliberately break the prompt and confirm the number goes down
+- [ ] **Bound the spread.** Two runs gave 75% and 65%. A third and fourth would say whether ±10 is the band or an outlier. Until that is known, no prompt change can be evaluated
+- [ ] **Falsify it** — break the prompt deliberately and confirm the number moves *beyond* the spread, not merely down
 
-**The one thing the harness has already caught.** `evals/cache/1d73fd883901544d.json` is a
-*failure*, from the first run: four `attr_type` errors, all the same shape —
+**Unreachable by construction, and struck from the bar**
+
+Nothing is persisted, so these two items from the original plan cannot be met and
+are no longer claimed:
+
+- ~~the same case set scored twice from cache gives a byte-identical result~~ — no cache
+- ~~`compare=A with=B` → per-case FIXED / REGRESS~~ — no records to diff
+
+The consequence is not cosmetic. Detecting a real change now needs several live
+runs averaged, because the same responses cannot be re-scored for free and two
+runs cannot be diffed for you.
+
+### The baseline
+
+`mistral-large-latest`, retry off, 20 cases, nothing changed between runs:
+
+| Run | Passed | First-try valid | Validator codes seen |
+|---|---|---|---|
+| 1 | 15/20 | **75%** | `attr_type`, `attr_value` |
+| 2 | 13/20 | **65%** | `attr_type`, `attr_value`, `block_missing`, `child_not_allowed`, `parent_not_allowed` |
+
+**Every non-`valid` scorer passed in both runs.** `counts`, `mustContain`, `minOf`,
+`maxOf`, `layout`, `headingTags`, `copyMustMention`, `attrEquals`, `noPlaceholder`
+and `padding` were clean throughout — the model set `sectionPadding` itself every
+time rather than relying on the applier backstop. Nothing failed on quality; every
+failure was a contract violation.
+
+Against Stage 3's bar of ≥85% first-try, that is 🔴 — a real, useful result.
+
+### What the baseline caught immediately
+
+22 of the 26 validator errors in run 1 were **one mistake made hours earlier the
+same day**:
 
 ```
-attr_type  root.children[0].children[0].attrs.subHeading
-           "subHeading" must be true or false, got "false"
+15×  listTextColor      must be a string, got {"color":{"style":"bgColor",…}}
+ 3×  iconColor          must be a string, got {"color":{…}}
+ 1×  btnTextColor       must be a string, got {"color":{…}}
+ 1×  titleTextColor     must be a string, got {"color":{…}}
+ 1×  contentTextColor   must be a string, got {"color":{…}}
 ```
 
-Fixed two commits later in `0ed1fec`. That is the harness doing its job on day one.
+`textFillBg` and `subHeadingBg` take the `(background)` object shape, and the prompt
+documents that shape prominently. The other colour attributes are plain strings and
+carry **no shape tag at all**, by the rule that *"plain strings get no tag: they are
+the common case and tagging them all would bury the ones that matter."* That rule
+held until a background-shaped colour appeared beside them; now the ambiguity sits
+exactly where the tag is needed, and the model generalises the object shape to all
+of them. Fixing it is a small prompt change — but see the spread problem above for
+why proving the fix worked is not.
+
+### Model access
+
+`class-provider-factory.php:27` reads a single shared `styble_ai_api_key`, so only
+one provider is reachable at a time.
+
+| | Blocker | State |
+|---|---|---|
+| B1 | No Anthropic key → target `claude-opus-5` unreachable, and prefix caching is **inert** here | ❌ open |
+| B2 | No Gemini key → floor `gemini-2.0-flash` unreachable | ❌ open |
+| B3 | One shared key option → two providers cannot be held at once | ❌ open |
+| B4 | Could `mistral-large-latest` satisfy this schema at all? `llama-3.3-70b` could not | ✅ resolved |
+
+So the baseline is **single-model**, recorded as a substitution. The plan's
+target-versus-floor split — which it calls the most useful signal in the document —
+is not available, and a 65–75% score cannot be attributed to our prompt versus the
+model's ceiling.
 
 **Command**
 
 ```
-wp eval-file scripts/eval.php suite=section live=1 provider=anthropic model=claude-opus-5
-wp eval-file scripts/eval.php suite=section live=1 provider=gemini model=gemini-2.0-flash
-wp eval-file scripts/eval.php compare=section-claude-opus-5 with=section-gemini-2.0-flash
+wp eval-file scripts/eval.php suite=section live=1 delay=8
 ```
 
-Expect the first live case to log `w:~5800 r:0` and cases 2–20 to log `w:0 r:~5800`.
-Reads stuck at zero means the prefix is being invalidated between calls.
+Provider and model come from Settings; passing a `provider=` that disagrees with
+them is refused rather than run with the wrong key.
 
 ---
 
@@ -150,39 +201,65 @@ nothing about whether they helped.
 
 ---
 
-## Stage 2 — right attribute, right value? ⚪
+## Stage 2 — right attribute, right value? 🟡
 
-Not started. Cheaper than the deck implies, because **the addressing already exists**:
+**The model and its two tools are built** — `includes/class-page-model.php`, 38 checks.
+What is missing is the eval suite that scores the model's *judgement* rather than the
+plumbing's correctness.
+
+It cost far less than the deck implies, because the addressing already existed:
 
 ```
 headless   uniqueId = prefix + md5(sectionId | nodePath)[0:12]   ← derived, re-computable
 editor     uniqueId = prefix + last dash-segment of clientId     ← random, but saved in post_content
 ```
 
-So `get_block(uid)` needs a reverse index — an O(n) walk over `_styble_ai_page`
-recomputing uids — not a new data model. This is the deck's Phase 1 centrepiece,
-~80% present as a side effect of the `uniqueId` work.
+Because the headless derivation is deterministic it is also *reversible by
+recomputation*, so the model is a **projection of `_styble_ai_page`**, not a second
+source of truth. No new data structure, no migration. The arithmetic lives once, in
+`Styble_AI_Page_Applier::unique_id()`, and the test compares the model's resolved
+uids against the applier's own output rather than against a second `md5()` — so the
+two cannot drift apart silently.
 
-- [ ] uid reverse index over the page store
-- [ ] `get_block(uid)` · `update_block(uid, attrs)` — validates the merged result, returns `{ok, uid, changed[], warnings[]}`, never HTML
+- [x] uid reverse index over the page store — `index()`, document order
+- [x] `get_block(uid)` — block, section, path, attrs, child uids, and what may be edited. **Never markup**
+- [x] `update_block(uid, attrs)` — merges, validates, returns `{ok, uid, block, changed[], warnings[]}`
+- [x] Validation runs on the **whole section envelope**, not the node: most interesting rules are cross-field, so editing a container's `layout` alone is caught by `layout_children_mismatch`. A node-only check would have passed it and broken the section
+- [x] A rejected edit leaves the stored page **byte-identical** — asserted against illegal enum values, emptied copy and foreign attributes
+- [x] `null` reverts an attribute to the block's default; re-sending an identical value reports no change, or a collateral count would be meaningless
 - [ ] `evals/attr-edit/cases.json` — ~40 instructions with exact expected diffs
 - [ ] Scorer: three numbers — right key, right value, **collateral**
 
 **Collateral is a hard zero.** A model that edits the heading *and* silently
-restyles the button is worse than one that refuses, because nobody notices until later.
+restyles the button is worse than one that refuses, because nobody notices until
+later. The plumbing already guarantees it — an edit diffs the entire page index
+before and after — so what Stage 2 still has to measure is whether the *model*
+picks the right attribute.
 
 ---
 
-## Stage 3 — one correct section ⚪
+## Stage 3 — one correct section 🔴
 
-Roughly what ships today, so **Stage 0's baseline is this stage's starting number**.
+**Measured, and below the bar.** This is roughly what ships today, so Stage 0's
+baseline *is* this stage's number: **65–75% first-try valid** against a bar of ≥85%.
 
-- [ ] Automated scorers (mostly reused from Stage 0)
+- [x] Automated scorers — reused from Stage 0, and every one of them passed on every valid tree
+- [ ] Bound the spread before acting on the number (see Stage 0)
+- [ ] Retry-on measurement: the bar also wants 100% valid after one corrective retry, and that has never been run — every measurement so far is `retries=0`
 - [ ] Rendered-screenshot contact sheet — structure passing says nothing about whether it *looks* right. One page, 20 sections, one rater, recorded verdicts
 
-**If it fails:** that is the trigger for the pattern library (deck Phase 2). The deck
-is explicit that patterns *are* the quality and freeform is the fallback. Build them
-**because** this stage failed, not in case it does — building first destroys the evidence.
+**What the failures were.** Not composition, not copy, not layout — every failure was
+a contract violation, and most were one attribute-shape ambiguity introduced the same
+day (see Stage 0). So this 🔴 is not yet evidence that freeform generation cannot
+work; it is evidence that the prompt currently contradicts itself about colour shapes
+and that four boolean/enum mistakes recur.
+
+**The trigger it would arm.** A genuine Stage 3 failure is what justifies the pattern
+library (deck Phase 2), and that is also the biggest cost lever measured: **$0.24 →
+$0.05 per page**. The deck is explicit that patterns *are* the quality and freeform
+is the fallback. But the current number is confounded by a fixable prompt bug and an
+unbounded noise band, so it does not yet justify anything. Fix the shape tags,
+re-measure with the spread known, and *then* decide.
 
 ---
 
@@ -191,7 +268,8 @@ is explicit that patterns *are* the quality and freeform is the fallback. Build 
 The deck's differentiator, and the thing never built. What ships today under
 "Edit with AI" regenerates the whole selection.
 
-- [ ] Full tool surface: `get_page` · `get_block` · `insert_block` · `update_block` · `move_block` · `delete_block` · `duplicate_block`
+- [x] `get_block` · `update_block` — built in Stage 2, 38 checks
+- [ ] The rest of the surface: `get_page` · `insert_block` · `move_block` · `delete_block` · `duplicate_block`
 - [ ] Tool-calling loop, `tool_choice: auto`, destructive tools gated
 - [ ] Diff application — re-serialize only the changed subtree
 - [ ] `evals/edit/cases.json` — ~25 instructions against fixed pages
@@ -229,10 +307,10 @@ its tests, so porting is mechanical rather than speculative.
 
 | Deck phase | Our stage | State |
 |---|---|---|
-| 1 — Foundation: page model + `resolve_attrs` + serialize | Prerequisite | **Mostly built.** Catalog ✅ · nesting rules ✅ · serializer ✅ · validator ✅ · uid page model ~80% (Stage 2 finishes it) |
+| 1 — Foundation: page model + `resolve_attrs` + serialize | Prerequisite | ✅ **Built.** Catalog · nesting rules · serializer · validator · **uid page model, 38 checks** |
 | 2 — Pattern library + `search_patterns` / `insert_pattern` / `fill_slots` | Stage 3's failure branch | Not built, **on purpose** |
 | 3 — Freeform `set_page_layout` fallback | Stages 0/3 | **Built, and currently the foundation rather than the fallback** — the inversion Stage 3 exists to judge |
-| 4 — ⭐ Edit tools | Stages 2 + 4 | Not built |
+| 4 — ⭐ Edit tools | Stages 2 + 4 | ⚠️ **`get_block`/`update_block` built.** The tool-calling loop and the other five mutators are not |
 | 5 — MCP | Stage 6 | Deferred |
 | 6 — Proxy + credits | — | Out of scope until Stage 5 passes |
 
@@ -246,8 +324,8 @@ its tests, so porting is mechanical rather than speculative.
 
 | Lever | Deck claim | Status |
 |---|---|---|
-| Catalog prefix caching | −up to ~90% input | ✅ **Done on the Anthropic path** (uncommitted). Not on the OpenAI-compatible path — `cache_control` is Anthropic's parameter and strict endpoints reject unknown fields |
-| Pattern-fill (content-only) | ✅ low | Not built — Stage 3's failure branch |
+| Catalog prefix caching | −up to ~90% input | ✅ Done on the Anthropic path (`586bb46`), but **inert on this install** — the configured provider is Mistral. Not mirrored to the OpenAI-compatible path: `cache_control` is Anthropic's parameter and strict endpoints reject unknown fields. Measured effect on a 6-section page: −28% total, because generation is output-dominated |
+| Pattern-fill (content-only) | ✅ low | Not built — Stage 3's failure branch. Measured potential: **$0.33 → $0.05 per page**, the single biggest lever |
 | Granular per-tool schemas | tiny diffs | Stages 2 + 4 |
 | Fetch vocabulary on demand (`list_block_types`, tool search `defer_loading`) | — | Not built |
 | Programmatic tool calling | "saving big tokens" | Not built — needs Stage 4's executor first |
@@ -273,6 +351,12 @@ same ground being re-argued.
 | 10 | Attribute cost, prompt vs schema | **Measured** — prompt grows ~29 chars/attr (×1); schema grows ~700 chars/attr (×6 depth levels) | Grow the prompt freely; never grow `attrs.properties` |
 | 11 | Prefix caching, 5-min TTL not 1h | **Measured** prefix (21,522 bytes ≈ 5,817 tokens) + documented economics (write 1.25× at 5 min vs 2× at 1h) | Every caller here bursts, so 5 min pays back in two requests where an hour needs three |
 | 12 | `llama-3.3-70b-versatile` retired as an eval model | **Measured** — 12,000 TPM cannot fit a ~5.8k-token prefix plus output, and the settings screen already records it emitting unparseable tool calls for this schema | Floor model is `gemini-2.0-flash` |
+| 13 | Two attributes exposed that nothing reads | **Measured** — audited every colour attribute against the whole render tree. `advancedTextColor` and `iconListTextcolor` are declared in `block.json` with sensible defaults and referenced by no CSS generator, frontend or editor | The AI had been setting `advancedTextColor` for weeks with no effect. Replaced by `textFillBg` / `subHeadingBg`, which paint via `background-clip:text`. **An attribute existing in `block.json` does not mean anything renders it** — and there is still no build-time check for this |
+| 14 | Overlay modes restricted to two of the block's own three | **Measured** — `Css_Helpers::color_controls()` has no case for `no-overlay`, `solid-overlay` or `gradient-overlay`, so all three fall to its default branch and return the SOLID colour; `has_active_section_bg_overlay()` counts anything but blank or `transparent` as active | Only `solid-overlay` and `transparent` do what their names say, so only those two are allowed. The catalog's own default-membership check had already rejected the control's list |
+| 15 | Image backgrounds allowed, but only where a photo can be filled | **Measured** — `textFillBg` with style `image` validated clean and rendered an **invisible heading**: `AdvancedText` passes no image object to `color_controls`, so the style resolves to `none` and `background-clip:text` clips nothing | `image` is legal only on a background attribute whose block also allowlists `sectionBgImg`. Catalog-driven, so it stays correct if the allowlist moves |
+| 16 | No persistence in the eval harness | **Decision, not a measurement** — cache and run records removed at the owner's request | Re-scoring now costs a fresh run, and `compare=A with=B` is gone. Detecting a change requires several live runs averaged. Stage 0's bar was rewritten to match what the harness can do |
+| 17 | Infrastructure failures were being cached as model results | **Measured** — a run pointed at the wrong provider wrote four `Invalid API Key` entries indistinguishable from real measurements | Fixed with a cacheable-outcome allowlist, then made moot by #16. A provider/key mismatch now refuses to run at all |
+| 18 | Run-to-run variance is ±10 points | **Measured** — two identical runs of the 20-case suite scored 75% and 65%, with three failure modes appearing in one and not the other | **A single run cannot detect a change.** The model is non-deterministic and the OpenAI-compatible path sends `temperature: 0.7`. This is now the binding constraint on the whole experiment |
 
 ---
 
@@ -296,9 +380,20 @@ Each with the trigger that would change the answer.
 
 ## Next three things, in order
 
-1. **Commit the prefix caching**, then **take the baseline** on both models. One command each. Everything downstream is unmeasurable without it, and the caching makes the run itself cheaper.
-2. **Falsify the harness** — break the prompt on purpose, confirm the score drops. An eval that cannot go down is not measuring anything.
-3. **Write Stage 1's block purpose lines.** Independent of 1 and 2, but must land *after* the baseline or it teaches us nothing.
+1. **Fix the colour shape ambiguity.** `listTextColor`, `btnTextColor`, `iconColor`,
+   `titleTextColor`, `contentTextColor` are plain strings sitting beside two
+   background-shaped ones, with no tag distinguishing them — and the model
+   generalises the object shape to all of them. That is 22 of the 26 validator
+   errors in the baseline. Small prompt change, largest single win available.
+2. **Bound the spread.** Two more runs, unchanged, to learn whether ±10 points is
+   the band. Without it, step 1 cannot be shown to have worked — a 70% next run
+   proves nothing either way.
+3. **Then falsify the harness**: break the prompt deliberately and confirm the
+   number moves beyond the spread. An eval that cannot move is not measuring.
+
+Stage 1's block-purpose lines remain the cheapest suspected quality win, but they
+are now *behind* the measurement work: with a ±10 band and no ability to re-score,
+landing a change we cannot evaluate is how the project got here.
 
 ---
 
@@ -306,20 +401,17 @@ Each with the trigger that would change the answer.
 
 ```
 php scripts/generate-catalog.php     # regenerate from Styble Pro
-php scripts/validate.php             # 34 contract fixtures + code coverage
+php scripts/validate.php             # 47 contract fixtures + code coverage + code coverage
 php scripts/test-generator.php       # the retry loop, against a stub provider
 php scripts/test-page-applier.php    # headless layout maths + uniqueId + markup
 php scripts/test-prompt.php          # invariants of the prompt and tool schema
 php scripts/test-provider-body.php   # request body shape + cache prefix stability
+php scripts/test-page-model.php      # uid addressing + granular edits
 php scripts/dump-prompt.php          # exactly what the model is told
 ```
 
 None of those need WordPress or an API key. The eval runner is the only one that
 does — and the only one that measures the model rather than the code.
-
-```
-ls evals/runs/                       # empty means there is still no baseline
-```
 
 **Rules that keep this file worth reading:** a stage moves to 🟢 only when its stated
 bar is met. Cases are added when they fail in real use and **never removed to make a
