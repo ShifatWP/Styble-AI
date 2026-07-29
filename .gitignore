@@ -12,6 +12,6 @@ build/
 # Logs
 *.log
 
-# Eval runner: cached provider responses are committed on purpose (they make a
-# run reproducible and let scorers be fixed without re-spending tokens), so
-# nothing here is ignored. Listed for the next person who wonders.
+# Eval runner: nothing is persisted. No response cache, no run records — a run
+# prints its result and that is the artifact. Listed for the next person who
+# wonders why evals/ holds only cases.json.

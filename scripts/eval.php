@@ -15,14 +15,20 @@
  *    First-try validity is the number we are trying to move; pass --retries=1 to
  *    measure the shipped behaviour instead.
  *
- *  - **Every model response is cached** on disk, keyed by the exact bytes sent.
- *    Scorers change far more often than prompts do, and re-scoring must cost
- *    nothing or it will not be done. A cached run is also byte-reproducible,
- *    which is the difference between a measurement and an anecdote.
+ *  - **Nothing is persisted.** No response cache, no run records. Every run calls
+ *    the provider for every case and prints its result; the terminal output IS
+ *    the artifact. The cost of that is deliberate and worth naming: re-scoring
+ *    after a scorer fix means paying for the calls again, and there is no
+ *    `compare` between two runs — a regression has to be spotted by reading two
+ *    outputs side by side rather than diffed for you.
  *
  *  - **Rate limits are handled, not reported.** Free tiers are the floor model's
- *    whole point, and Groq's 12k TPM cannot fit two of our requests in a minute.
- *    The runner reads the delay the provider asks for and waits it out.
+ *    whole point, and 12k TPM cannot fit two of our requests in a minute. The
+ *    runner reads the delay the provider asks for and waits it out.
+ *
+ *  - **Scoring is deterministic**, so two runs over the same responses agree.
+ *    What is NOT deterministic is the model, so two live runs of the same case
+ *    can legitimately differ.
  *
  * Runs under WP-CLI because it needs the real provider classes, the real
  * settings and real HTTP — unlike the other scripts here, which are WP-free
@@ -30,13 +36,11 @@
  *
  * WP-CLI rejects unknown `--flags`, so arguments are positional:
  *
- *   wp eval-file scripts/eval.php suite=section              # cache only, free
- *   wp eval-file scripts/eval.php suite=section live=1       # calls the provider
- *   wp eval-file scripts/eval.php suite=section live=1 provider=anthropic model=claude-opus-5
- *   wp eval-file scripts/eval.php compare=section-a with=section-b
+ *   wp eval-file scripts/eval.php suite=section live=1
+ *   wp eval-file scripts/eval.php suite=section live=1 retries=1 delay=45
  *
- * `live=1` is required to touch the network at all. Everything else defaults to
- * reading the cache, so a typo cannot spend money.
+ * `live=1` is required: every run spends real tokens, so a mistyped argument
+ * must not be able to start one.
  *
  * @package Styble_AI
  */
@@ -50,11 +54,6 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 
 $opts = styble_ai_eval_args( isset( $args ) && is_array( $args ) ? $args : array() );
 
-if ( '' !== $opts['compare'] ) {
-	styble_ai_eval_compare( $opts['compare'], $opts['with'] );
-	return;
-}
-
 $suite_file = STYBLE_AI_DIR . 'evals/' . $opts['suite'] . '/cases.json';
 if ( ! is_readable( $suite_file ) ) {
 	WP_CLI::error( "No such suite: {$suite_file}" );
@@ -64,17 +63,20 @@ if ( ! is_array( $suite ) || empty( $suite['cases'] ) ) {
 	WP_CLI::error( "Suite is not valid JSON or has no cases: {$suite_file}" );
 }
 
+if ( ! $opts['live'] ) {
+	WP_CLI::error( 'Every run spends real tokens and nothing is cached. Pass live=1 to confirm.' );
+}
+
 $catalog  = Styble_AI_Catalog::from_file();
 $provider = styble_ai_eval_provider( $opts );
 $model    = $opts['model'] ? $opts['model'] : styble_ai_eval_default_model( $opts['provider'] );
 
 WP_CLI::log( sprintf(
-	'suite=%s  provider=%s  model=%s  retries=%d  %s',
+	'suite=%s  provider=%s  model=%s  retries=%d  live',
 	$opts['suite'],
 	$opts['provider'],
 	$model,
-	$opts['retries'],
-	$opts['cached'] ? 'CACHED ONLY (no network)' : 'live'
+	$opts['retries']
 ) );
 WP_CLI::log( str_repeat( '-', 78 ) );
 
@@ -88,10 +90,9 @@ foreach ( $suite['cases'] as $i => $case ) {
 	$results[] = $outcome;
 
 	WP_CLI::log( sprintf(
-		'  %-20s %s%s%s  %s',
+		'  %-20s %s%s  %s',
 		$case['id'],
 		$outcome['pass'] ? 'PASS' : 'FAIL',
-		$outcome['cached'] ? ' (cached)' : '',
 		$outcome['usage']
 			? sprintf( '  [cache w:%d r:%d  in:%d]', $outcome['usage']['write'], $outcome['usage']['read'], $outcome['usage']['in'] )
 			: '',
@@ -100,7 +101,7 @@ foreach ( $suite['cases'] as $i => $case ) {
 
 	// Pace live calls. A free tier that allows one request per minute is still a
 	// usable eval target if the runner is willing to wait.
-	if ( ! $outcome['cached'] && $i < $n_cases - 1 && $opts['delay'] > 0 ) {
+	if ( $i < $n_cases - 1 && $opts['delay'] > 0 ) {
 		sleep( $opts['delay'] );
 	}
 }
@@ -108,7 +109,6 @@ foreach ( $suite['cases'] as $i => $case ) {
 // ---------------------------------------------------------------- report
 
 $record = styble_ai_eval_summarise( $suite, $results, $model, $opts );
-$path   = styble_ai_eval_write_run( $record, $opts );
 
 WP_CLI::log( str_repeat( '-', 78 ) );
 WP_CLI::log( sprintf(
@@ -123,7 +123,6 @@ foreach ( $record['summary']['checks'] as $check => $stat ) {
 if ( $record['summary']['errorCodes'] ) {
 	WP_CLI::log( '  validator codes seen: ' . implode( ', ', array_keys( $record['summary']['errorCodes'] ) ) );
 }
-WP_CLI::log( 'run: ' . str_replace( STYBLE_AI_DIR, '', $path ) );
 
 /* ==================================================================== */
 /* Runner                                                               */
@@ -141,49 +140,26 @@ WP_CLI::log( 'run: ' . str_replace( STYBLE_AI_DIR, '', $path ) );
  * @return array
  */
 function styble_ai_eval_run_case( array $case, $catalog, $provider, $model, array $opts ) {
-	$cache_key = styble_ai_eval_cache_key( $model, $opts['retries'], $case['prompt'], $catalog );
-	$cached    = styble_ai_eval_cache_read( $cache_key );
+	$generator = new Styble_AI_Generator( $catalog, $provider, $opts['retries'] );
+	$result    = $generator->generate( $case['prompt'] );
 
-	if ( null !== $cached ) {
-		$raw = $cached;
-	} elseif ( $opts['cached'] ) {
-		return array(
-			'id'         => $case['id'],
-			'pass'       => false,
-			'cached'     => true,
-			'failures'   => array( 'no cached response — run live first' ),
-			'checks'     => array(),
-			'errorCodes' => array(),
-			'tree'       => null,
-			'usage'      => array(),
+	$raw = is_wp_error( $result )
+		? array(
+			'error'  => $result->get_error_message(),
+			'code'   => $result->get_error_code(),
+			'errors' => (array) ( is_array( $result->get_error_data() ) && isset( $result->get_error_data()['errors'] ) ? $result->get_error_data()['errors'] : array() ),
+			'tree'   => null,
+		)
+		: array(
+			'error'  => null,
+			'code'   => '',
+			'errors' => array(),
+			'tree'   => $result['tree'],
 		);
-	} else {
-		$generator = new Styble_AI_Generator( $catalog, $provider, $opts['retries'] );
-		$result    = $generator->generate( $case['prompt'] );
 
-		$raw = is_wp_error( $result )
-			? array(
-				'error'    => $result->get_error_message(),
-				'code'     => $result->get_error_code(),
-				'errors'   => (array) ( is_array( $result->get_error_data() ) && isset( $result->get_error_data()['errors'] ) ? $result->get_error_data()['errors'] : array() ),
-				'tree'     => null,
-			)
-			: array(
-				'error'  => null,
-				'code'   => '',
-				'errors' => array(),
-				'tree'   => $result['tree'],
-			);
-
-		styble_ai_eval_cache_write( $cache_key, $raw );
-	}
-
-	$scored           = styble_ai_eval_score( $case, $raw, $catalog );
-	$scored['id']     = $case['id'];
-	$scored['cached'] = ( null !== $cached );
-	// Live only, and deliberately NOT written to the run record: token counts vary
-	// per call, and a run record has to stay byte-identical to be a measurement.
-	$scored['usage']  = ( null === $cached ) ? styble_ai_eval_usage() : array();
+	$scored          = styble_ai_eval_score( $case, $raw, $catalog );
+	$scored['id']    = $case['id'];
+	$scored['usage'] = styble_ai_eval_usage();
 
 	return $scored;
 }
@@ -224,6 +200,28 @@ function styble_ai_eval_usage() {
  */
 function styble_ai_eval_provider( array $opts ) {
 	$key = get_option( 'styble_ai_api_key', '' );
+
+	// There is ONE key option shared by every provider, so `provider=` can move the
+	// endpoint and the model but never the credential. Overriding it to something
+	// other than the configured provider therefore sends the wrong key and every
+	// case fails identically on auth — which reads like a catastrophic model score
+	// rather than a mistyped argument. Refuse instead of measuring nothing.
+	$configured = get_option( 'styble_ai_provider', 'anthropic' );
+	if ( $opts['provider'] !== $configured ) {
+		WP_CLI::error(
+			sprintf(
+				"provider=%s but Styble AI is configured for %s, and both share one api key option.\n"
+					. 'Switch the provider under Styble AI → Settings (which also sets its key), or drop the provider argument to use %s.',
+				$opts['provider'],
+				$configured,
+				$configured
+			)
+		);
+	}
+
+	if ( '' === trim( (string) $key ) ) {
+		WP_CLI::error( 'No API key configured. Add one under Styble AI → Settings.' );
+	}
 
 	if ( 'anthropic' === $opts['provider'] ) {
 		$inner = new Styble_AI_Anthropic_Provider( $key, $opts['model'] ? $opts['model'] : 'claude-opus-5' );
@@ -308,7 +306,7 @@ class Styble_AI_Eval_Patient_Provider {
 }
 
 /* ==================================================================== */
-/* Scoring — deterministic, so a cached re-run is byte-identical         */
+/* Scoring — deterministic, so the same response always scores the same    */
 /* ==================================================================== */
 
 /**
@@ -554,57 +552,8 @@ function styble_ai_eval_codes( array $raw ) {
 }
 
 /* ==================================================================== */
-/* Cache, run records, comparison                                        */
+/* Summary                                                               */
 /* ==================================================================== */
-
-/**
- * Key on everything that can change the answer: model, retry budget, the brief,
- * and the contract the model is working against. A catalog regeneration or a
- * prompt edit must miss the cache, or the number is a lie.
- *
- * @param string            $model   Model id.
- * @param int               $retries Retry budget.
- * @param string            $prompt  Case prompt.
- * @param Styble_AI_Catalog $catalog Block catalog.
- *
- * @return string
- */
-function styble_ai_eval_cache_key( $model, $retries, $prompt, $catalog ) {
-	$p = new Styble_AI_Prompt( $catalog );
-	return substr(
-		sha1( $model . '|' . $retries . '|' . $prompt . '|' . $p->system_prompt() . '|' . wp_json_encode( $p->tool_schema() ) ),
-		0,
-		16
-	);
-}
-
-/**
- * @param string $key Cache key.
- *
- * @return array|null
- */
-function styble_ai_eval_cache_read( $key ) {
-	$file = STYBLE_AI_DIR . 'evals/cache/' . $key . '.json';
-	if ( ! is_readable( $file ) ) {
-		return null;
-	}
-	$data = json_decode( file_get_contents( $file ), true );
-	return is_array( $data ) ? $data : null;
-}
-
-/**
- * @param string $key  Cache key.
- * @param array  $data Provider outcome.
- *
- * @return void
- */
-function styble_ai_eval_cache_write( $key, array $data ) {
-	$dir = STYBLE_AI_DIR . 'evals/cache';
-	if ( ! is_dir( $dir ) ) {
-		mkdir( $dir, 0755, true );
-	}
-	file_put_contents( $dir . '/' . $key . '.json', wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
-}
 
 /**
  * @param array  $suite   Suite definition.
@@ -612,7 +561,7 @@ function styble_ai_eval_cache_write( $key, array $data ) {
  * @param string $model   Model id.
  * @param array  $opts    Options.
  *
- * @return array
+ * @return array Summary for printing; nothing is persisted.
  */
 function styble_ai_eval_summarise( array $suite, array $results, $model, array $opts ) {
 	$passed = 0;
@@ -661,83 +610,6 @@ function styble_ai_eval_summarise( array $suite, array $results, $model, array $
 	);
 }
 
-/**
- * Run records carry no timestamp inside them: two runs of the same cases on the
- * same model must be byte-identical, and a clock would break that.
- *
- * @param array $record Run record.
- * @param array $opts   Options.
- *
- * @return string Path written.
- */
-function styble_ai_eval_write_run( array $record, array $opts ) {
-	$dir = STYBLE_AI_DIR . 'evals/runs';
-	if ( ! is_dir( $dir ) ) {
-		mkdir( $dir, 0755, true );
-	}
-	$name = $opts['name'] ? $opts['name'] : sprintf( '%s-%s', $record['suite'], preg_replace( '/[^a-z0-9.-]/i', '-', $record['model'] ) );
-	$path = $dir . '/' . $name . '.json';
-	file_put_contents( $path, wp_json_encode( $record, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . "\n" );
-	return $path;
-}
-
-/**
- * Per-case regressions between two run records.
- *
- * @param string $a First run name.
- * @param string $b Second run name.
- *
- * @return void
- */
-function styble_ai_eval_compare( $a, $b ) {
-	$ra = styble_ai_eval_read_run( $a );
-	$rb = styble_ai_eval_read_run( $b );
-
-	$by_id = array();
-	foreach ( $ra['cases'] as $c ) {
-		$by_id[ $c['id'] ]['a'] = $c;
-	}
-	foreach ( $rb['cases'] as $c ) {
-		$by_id[ $c['id'] ]['b'] = $c;
-	}
-
-	WP_CLI::log( sprintf( '%s (%.0f%%)  ->  %s (%.0f%%)', $a, 100 * $ra['summary']['rate'], $b, 100 * $rb['summary']['rate'] ) );
-	WP_CLI::log( str_repeat( '-', 78 ) );
-
-	$fixed = 0;
-	$broke = 0;
-	foreach ( $by_id as $id => $pair ) {
-		$pa = isset( $pair['a'] ) ? $pair['a']['pass'] : null;
-		$pb = isset( $pair['b'] ) ? $pair['b']['pass'] : null;
-		if ( $pa === $pb ) {
-			continue;
-		}
-		if ( true === $pb ) {
-			$fixed++;
-			WP_CLI::log( "  FIXED    {$id}" );
-		} else {
-			$broke++;
-			WP_CLI::log( "  REGRESS  {$id}  " . implode( '; ', array_slice( $pair['b']['failures'], 0, 2 ) ) );
-		}
-	}
-
-	WP_CLI::log( str_repeat( '-', 78 ) );
-	WP_CLI::log( sprintf( '%d fixed, %d regressed', $fixed, $broke ) );
-}
-
-/**
- * @param string $name Run name or path.
- *
- * @return array
- */
-function styble_ai_eval_read_run( $name ) {
-	$path = ( 0 === strpos( $name, '/' ) ) ? $name : STYBLE_AI_DIR . 'evals/runs/' . $name . '.json';
-	if ( ! is_readable( $path ) ) {
-		WP_CLI::error( "No such run: {$path}" );
-	}
-	return json_decode( file_get_contents( $path ), true );
-}
-
 /* ==================================================================== */
 /* Options                                                              */
 /* ==================================================================== */
@@ -758,9 +630,6 @@ function styble_ai_eval_args( array $argv ) {
 		// harmless; a run that calls a provider spends real money, so it may not
 		// be something a mistyped flag can switch on by accident.
 		'live'     => 0,
-		'name'     => '',
-		'compare'  => '',
-		'with'     => '',
 	);
 
 	// WP-CLI eval-file rejects unknown `--flags` before the script ever runs, so
@@ -774,8 +643,6 @@ function styble_ai_eval_args( array $argv ) {
 		$value           = isset( $m[2] ) ? $m[2] : '1';
 		$opts[ $m[1] ]   = is_numeric( $value ) ? (int) $value : $value;
 	}
-
-	$opts['cached'] = ! $opts['live'];
 
 	return $opts;
 }
