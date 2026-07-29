@@ -88,10 +88,13 @@ foreach ( $suite['cases'] as $i => $case ) {
 	$results[] = $outcome;
 
 	WP_CLI::log( sprintf(
-		'  %-20s %s%s  %s',
+		'  %-20s %s%s%s  %s',
 		$case['id'],
 		$outcome['pass'] ? 'PASS' : 'FAIL',
 		$outcome['cached'] ? ' (cached)' : '',
+		$outcome['usage']
+			? sprintf( '  [cache w:%d r:%d  in:%d]', $outcome['usage']['write'], $outcome['usage']['read'], $outcome['usage']['in'] )
+			: '',
 		$outcome['pass'] ? '' : implode( '; ', array_slice( $outcome['failures'], 0, 3 ) )
 	) );
 
@@ -152,6 +155,7 @@ function styble_ai_eval_run_case( array $case, $catalog, $provider, $model, arra
 			'checks'     => array(),
 			'errorCodes' => array(),
 			'tree'       => null,
+			'usage'      => array(),
 		);
 	} else {
 		$generator = new Styble_AI_Generator( $catalog, $provider, $opts['retries'] );
@@ -177,8 +181,37 @@ function styble_ai_eval_run_case( array $case, $catalog, $provider, $model, arra
 	$scored           = styble_ai_eval_score( $case, $raw, $catalog );
 	$scored['id']     = $case['id'];
 	$scored['cached'] = ( null !== $cached );
+	// Live only, and deliberately NOT written to the run record: token counts vary
+	// per call, and a run record has to stay byte-identical to be a measurement.
+	$scored['usage']  = ( null === $cached ) ? styble_ai_eval_usage() : array();
 
 	return $scored;
+}
+
+/**
+ * Cache accounting from the last provider call, as a short log fragment.
+ *
+ * The whole point of the prefix cache is invisible without this: a zero read
+ * across cases means something in the prompt or tool schema is not
+ * byte-identical between calls, and nothing else would ever say so.
+ *
+ * @return array { write, read, in } token counts, or empty.
+ */
+function styble_ai_eval_usage() {
+	if ( ! method_exists( 'Styble_AI_Anthropic_Provider', 'last_usage' ) ) {
+		return array();
+	}
+
+	$usage = Styble_AI_Anthropic_Provider::last_usage();
+	if ( ! $usage ) {
+		return array();
+	}
+
+	return array(
+		'write' => isset( $usage['cache_creation_input_tokens'] ) ? (int) $usage['cache_creation_input_tokens'] : 0,
+		'read'  => isset( $usage['cache_read_input_tokens'] ) ? (int) $usage['cache_read_input_tokens'] : 0,
+		'in'    => isset( $usage['input_tokens'] ) ? (int) $usage['input_tokens'] : 0,
+	);
 }
 
 /**
