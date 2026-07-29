@@ -39,6 +39,7 @@ require_once STYBLE_AI_DIR . 'includes/class-media.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-applier.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-planner.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-store.php';
+require_once STYBLE_AI_DIR . 'includes/class-page-model.php';
 require_once STYBLE_AI_DIR . 'includes/class-rest-controller.php';
 require_once STYBLE_AI_DIR . 'includes/class-chat-controller.php';
 require_once STYBLE_AI_DIR . 'includes/class-chat-page.php';

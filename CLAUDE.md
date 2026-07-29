@@ -69,6 +69,7 @@
 > php scripts/test-page-applier.php   # headless layout maths + uniqueId + markup
 > php scripts/test-prompt.php         # invariants of the prompt and tool schema
 > php scripts/test-provider-body.php  # request body shape + cache prefix stability
+> php scripts/test-page-model.php     # uid addressing + granular edits
 > php scripts/dump-prompt.php         # what the model is actually told
 > ```
 >

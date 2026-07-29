@@ -399,13 +399,33 @@ class Styble_AI_Page_Applier {
 
 		$prefix = $this->catalog->unique_id_prefix( $node['block'] );
 		if ( is_string( $prefix ) && '' !== $prefix ) {
-			// Derived, not random: stable across rebuilds, so regenerating one
-			// section cannot renumber another section's scoped CSS. 12 hex chars
-			// matches the length of the clientId segment the editor uses.
-			$attrs['uniqueId'] = $prefix . substr( md5( $scope . '|' . $path ), 0, 12 );
+			$attrs['uniqueId'] = self::unique_id( $prefix, $scope, $path );
 		}
 
 		return $attrs;
+	}
+
+	/**
+	 * The uniqueId a block at this position gets.
+	 *
+	 * Derived, not random: stable across rebuilds, so regenerating one section
+	 * cannot renumber another section's scoped CSS. 12 hex characters matches the
+	 * length of the clientId segment the editor's own useUniqueId() uses.
+	 *
+	 * Public and static because it is the addressing scheme for the whole page,
+	 * not an implementation detail of serialization — Styble_AI_Page_Model walks
+	 * the stored trees and recomputes these to resolve a uid back to a node. Two
+	 * copies of this arithmetic would mean a uid that resolves to the wrong block,
+	 * so there is one.
+	 *
+	 * @param string $prefix Block's uniqueIdPrefix from the catalog.
+	 * @param string $scope  Section id.
+	 * @param string $path   Node path within the section ("r", "r.0", "r.0.1").
+	 *
+	 * @return string
+	 */
+	public static function unique_id( $prefix, $scope, $path ) {
+		return $prefix . substr( md5( $scope . '|' . $path ), 0, 12 );
 	}
 
 	/* ------------------------------------------------------------------ */
