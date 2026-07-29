@@ -43,6 +43,26 @@ class Styble_AI_Anthropic_Provider {
 	private $api_key;
 	private $model;
 
+	/**
+	 * Token usage from the most recent call, or an empty array.
+	 *
+	 * Static because the interesting numbers are cache_creation_input_tokens and
+	 * cache_read_input_tokens, and the only way to know whether the prefix cache
+	 * is actually working is to read them: a zero cache_read across repeated
+	 * calls means something in the prefix is not byte-identical, and that failure
+	 * is otherwise completely silent. Read by scripts/eval.php.
+	 *
+	 * @var array
+	 */
+	private static $last_usage = array();
+
+	/**
+	 * @return array Usage from the last complete() call.
+	 */
+	public static function last_usage() {
+		return self::$last_usage;
+	}
+
 	public function __construct( $api_key, $model ) {
 		$this->api_key = $api_key;
 		$this->model   = $model ? $model : 'claude-opus-5';
@@ -73,7 +93,7 @@ class Styble_AI_Anthropic_Provider {
 		$body = array(
 			'model'      => $this->model,
 			'max_tokens' => isset( $spec['max_tokens'] ) ? (int) $spec['max_tokens'] : self::MAX_TOKENS,
-			'system'     => isset( $spec['system'] ) ? $spec['system'] : '',
+			'system'     => $this->system_blocks( isset( $spec['system'] ) ? (string) $spec['system'] : '' ),
 			'tools'      => array(
 				array(
 					'name'         => $tool['name'],
@@ -95,6 +115,51 @@ class Styble_AI_Anthropic_Provider {
 		// one, where it remains valid.
 
 		return $this->send( $body, $tool['name'] );
+	}
+
+	/**
+	 * The system prompt as content blocks, with a cache breakpoint on the last one.
+	 *
+	 * Caching is a prefix match, and the request renders in the order
+	 * tools -> system -> messages. So a single breakpoint on the last system
+	 * block covers BOTH the tool schema and the system prompt — which together
+	 * are the whole ~21KB the catalog generates, byte-identical on every call and
+	 * on the corrective retry. Only the user's own sentence sits after it.
+	 *
+	 * One breakpoint, not two: four are allowed, but a second one on the tool
+	 * would only create a redundant entry for a prefix this one already covers.
+	 *
+	 * Default 5-minute TTL rather than 1h. A write costs 1.25x base input at 5
+	 * minutes versus 2x at an hour, and every caller here issues its requests in
+	 * a burst — a page is 5-7 back-to-back sections, an eval run paces cases
+	 * seconds apart. Two requests inside the window already pay the write back;
+	 * the hour would need three, for a gap nothing in this plugin leaves.
+	 *
+	 * This is deliberately NOT mirrored in the OpenAI-compatible provider.
+	 * `cache_control` is Anthropic's parameter, the nine endpoints behind that
+	 * class do not accept it, and the strict ones reject unknown fields outright
+	 * — a caching optimisation that breaks generation on eight providers is not
+	 * an optimisation. OpenAI-shaped endpoints that cache do it server-side with
+	 * no parameter to send.
+	 *
+	 * @param string $system Rendered system prompt.
+	 *
+	 * @return array|string Blocks, or the raw string when there is nothing to cache.
+	 */
+	private function system_blocks( $system ) {
+		// An empty text block is rejected, and there would be no prefix to cache
+		// anyway. Fall back to the plain string form.
+		if ( '' === trim( $system ) ) {
+			return $system;
+		}
+
+		return array(
+			array(
+				'type'          => 'text',
+				'text'          => $system,
+				'cache_control' => array( 'type' => 'ephemeral' ),
+			),
+		);
 	}
 
 	/**
@@ -188,6 +253,13 @@ class Styble_AI_Anthropic_Provider {
 		$code = wp_remote_retrieve_response_code( $response );
 		$raw  = wp_remote_retrieve_body( $response );
 		$data = json_decode( $raw, true );
+
+		// Recorded before the error branches: a truncated or tool-less response
+		// still reports what the prefix cost, which is exactly when you want to
+		// know whether the cache was read.
+		self::$last_usage = ( is_array( $data ) && isset( $data['usage'] ) && is_array( $data['usage'] ) )
+			? $data['usage']
+			: array();
 
 		if ( $code < 200 || $code >= 300 ) {
 			$msg = isset( $data['error']['message'] ) ? $data['error']['message'] : 'HTTP ' . $code;
