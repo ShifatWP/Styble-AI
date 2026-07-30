@@ -42,6 +42,13 @@ require_once STYBLE_AI_DIR . 'includes/class-page-applier.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-planner.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-store.php';
 require_once STYBLE_AI_DIR . 'includes/class-page-model.php';
+// Phase A — the tool host. Loaded before the controllers so a tool file dropped
+// in includes/tools/ is discoverable by the time a route needs the registry.
+require_once STYBLE_AI_DIR . 'includes/class-pattern-library.php';
+require_once STYBLE_AI_DIR . 'includes/class-tool-log.php';
+require_once STYBLE_AI_DIR . 'includes/class-turn-budget.php';
+require_once STYBLE_AI_DIR . 'includes/class-tool.php';
+require_once STYBLE_AI_DIR . 'includes/class-tool-registry.php';
 require_once STYBLE_AI_DIR . 'includes/class-rest-controller.php';
 require_once STYBLE_AI_DIR . 'includes/class-chat-controller.php';
 require_once STYBLE_AI_DIR . 'includes/class-chat-page.php';
