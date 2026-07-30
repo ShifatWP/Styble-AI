@@ -106,7 +106,10 @@ function styble_ai_admin_notice() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	if ( get_option( 'styble_ai_api_key', '' ) ) {
+	// Asks the factory, not the option, so the per-provider store and the legacy
+	// single-key migration are both honoured — otherwise an install that already
+	// had a key would see a "add a key" notice forever after B3 landed.
+	if ( Styble_AI_Provider_Factory::has_key() ) {
 		return;
 	}
 	$screen = get_current_screen();

@@ -171,22 +171,27 @@ function styble_ai_eval_run_case( array $case, $catalog, $provider, $model, arra
  * across cases means something in the prompt or tool schema is not
  * byte-identical between calls, and nothing else would ever say so.
  *
+ * Read through Styble_AI_Usage_Tracker rather than off the Anthropic provider,
+ * so a run against an OpenAI-compatible endpoint reports its numbers too. The
+ * tracker also reconciles the two providers' incompatible usage shapes, which is
+ * the whole reason not to read the raw block here.
+ *
  * @return array { write, read, in } token counts, or empty.
  */
 function styble_ai_eval_usage() {
-	if ( ! method_exists( 'Styble_AI_Anthropic_Provider', 'last_usage' ) ) {
+	if ( ! class_exists( 'Styble_AI_Usage_Tracker' ) ) {
 		return array();
 	}
 
-	$usage = Styble_AI_Anthropic_Provider::last_usage();
+	$usage = Styble_AI_Usage_Tracker::last();
 	if ( ! $usage ) {
 		return array();
 	}
 
 	return array(
-		'write' => isset( $usage['cache_creation_input_tokens'] ) ? (int) $usage['cache_creation_input_tokens'] : 0,
-		'read'  => isset( $usage['cache_read_input_tokens'] ) ? (int) $usage['cache_read_input_tokens'] : 0,
-		'in'    => isset( $usage['input_tokens'] ) ? (int) $usage['input_tokens'] : 0,
+		'write' => (int) $usage['cache_write'],
+		'read'  => (int) $usage['cache_read'],
+		'in'    => (int) $usage['in'],
 	);
 }
 
@@ -199,37 +204,43 @@ function styble_ai_eval_usage() {
  * @return object
  */
 function styble_ai_eval_provider( array $opts ) {
-	$key = get_option( 'styble_ai_api_key', '' );
+	// Credentials are per provider now (roadmap B3 / plan Phase 0.4), so
+	// `provider=` moves the endpoint, the model AND the key together. The old
+	// blanket refusal — "provider must equal the configured one, because both
+	// share one key option" — is gone with the shared option that caused it.
+	//
+	// What is still refused is the case that actually measures nothing: the named
+	// provider having no key. That used to be indistinguishable from a mistyped
+	// argument, and it wrote 20 identical auth failures that read like a
+	// catastrophic model score.
+	$provider = $opts['provider'];
+	$key      = Styble_AI_Provider_Factory::key_for( $provider );
 
-	// There is ONE key option shared by every provider, so `provider=` can move the
-	// endpoint and the model but never the credential. Overriding it to something
-	// other than the configured provider therefore sends the wrong key and every
-	// case fails identically on auth — which reads like a catastrophic model score
-	// rather than a mistyped argument. Refuse instead of measuring nothing.
-	$configured = get_option( 'styble_ai_provider', 'anthropic' );
-	if ( $opts['provider'] !== $configured ) {
+	if ( '' === $key ) {
+		$have = Styble_AI_Provider_Factory::providers_with_keys();
 		WP_CLI::error(
 			sprintf(
-				"provider=%s but Styble AI is configured for %s, and both share one api key option.\n"
-					. 'Switch the provider under Styble AI → Settings (which also sets its key), or drop the provider argument to use %s.',
-				$opts['provider'],
-				$configured,
-				$configured
+				"No API key stored for provider=%s.\n"
+					. "Add one under Styble AI → Settings (select %s, paste its key — other providers' keys are kept).\n"
+					. 'Providers with a key on file: %s',
+				$provider,
+				$provider,
+				$have ? implode( ', ', $have ) : 'none'
 			)
 		);
 	}
 
-	if ( '' === trim( (string) $key ) ) {
-		WP_CLI::error( 'No API key configured. Add one under Styble AI → Settings.' );
-	}
+	// An explicit model= wins; otherwise this provider's OWN stored model, then
+	// the preset default. Before B3 the stored model was shared too, so running
+	// the floor model meant retyping the target's model afterwards.
+	$model = $opts['model'] ? $opts['model'] : Styble_AI_Provider_Factory::model_for( $provider );
 
-	if ( 'anthropic' === $opts['provider'] ) {
-		$inner = new Styble_AI_Anthropic_Provider( $key, $opts['model'] ? $opts['model'] : 'claude-opus-5' );
+	if ( 'anthropic' === $provider ) {
+		$inner = new Styble_AI_Anthropic_Provider( $key, $model ? $model : 'claude-opus-5' );
 	} else {
 		$presets  = Styble_AI_OpenAI_Compatible_Provider::presets();
-		$endpoint = isset( $presets[ $opts['provider'] ] ) ? $presets[ $opts['provider'] ]['endpoint'] : get_option( 'styble_ai_base_url', '' );
-		$model    = $opts['model'] ? $opts['model'] : styble_ai_eval_default_model( $opts['provider'] );
-		$inner    = new Styble_AI_OpenAI_Compatible_Provider( $key, $model, $endpoint );
+		$endpoint = isset( $presets[ $provider ] ) ? $presets[ $provider ]['endpoint'] : get_option( 'styble_ai_base_url', '' );
+		$inner    = new Styble_AI_OpenAI_Compatible_Provider( $key, $model ? $model : styble_ai_eval_default_model( $provider ), $endpoint );
 	}
 
 	return new Styble_AI_Eval_Patient_Provider( $inner );
@@ -263,6 +274,12 @@ class Styble_AI_Eval_Patient_Provider {
 	 * @return array|WP_Error
 	 */
 	public function complete( array $spec ) {
+		// Relabel for token accounting. An eval run spends real money on the same
+		// route the product uses, and left alone it would be indistinguishable
+		// from user-facing generation in Styble AI → Token Usage — which is
+		// exactly the number a user is trying to read.
+		$spec['operation'] = 'eval';
+
 		for ( $attempt = 0; $attempt <= $this->max_waits; $attempt++ ) {
 			$result = $this->inner->complete( $spec );
 
