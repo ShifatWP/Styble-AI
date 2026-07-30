@@ -255,6 +255,7 @@ class Styble_AI_Prompt {
 				'- An attribute written `name (true/false)` takes a JSON boolean: `true`, not `"true"`. A quoted string is rejected.',
 				'- Object-valued attributes are real JSON objects, not strings. `{"device":{"Desktop":16}}` is correct; `"{\\"device\\":{\\"Desktop\\":16}}"` is rejected. Never quote a `{`.',
 				'- Attributes tagged (responsive), (responsive box), (icon) or (image) are objects with an EXACT shape, given under "Attribute value shapes". A plain number or string is rejected. If you do not specifically need to change one, omit it — the block\'s own default is already sensible.',
+				'- **An attribute tagged (colour string) is a PLAIN STRING, never an object.** Write `"#0f172a"` or `"var(--styble-primary)"`. `{"color":{"style":"bgColor",...}}` is REJECTED on these. The `(background)` object shape belongs ONLY to attributes tagged (background) — those are the `sectionBg` / `textFillBg` / `subHeadingBg` family. Two attributes on the SAME block can differ: on styble/advanced-text, `textFillBg` is (background) and takes the object, while a colour on any other block is (colour string) and takes the string. Go by the tag, never by the fact that both are "a colour".',
 				'- Never invent an image URL or attachment id. Describe the photograph you want in `imgAltText` instead — that description is used verbatim to search a stock photo library, so write it as a subject, not a caption: "barista pouring latte art into a white cup", not "Our coffee". Two to eight concrete words, no brand names, no text-in-image, no people by name.',
 				'- A styble/container holds only styble/column children (or nested containers). Content goes inside the columns.',
 				'',
@@ -275,7 +276,9 @@ class Styble_AI_Prompt {
 				'- **Prefer a brand variable to a hex.** Every brand colour slug listed under "Brand context" is also a CSS variable: slug `primary` is `var(--styble-primary)`, `light-neutral` is `var(--styble-light-neutral)`, and so on. A variable tracks the site\'s palette if the owner changes it; a hard-coded hex does not.',
 				'- **A hero can have a photographic background.** Set `sectionBg` style `image` and describe the photo in `sectionBgImg.alt` — see "(background)" under "Attribute value shapes" for the exact shape, including the fallback colour and the overlay that keeps the copy readable. Use one where the brief asks for a photo or an atmosphere; a flat colour is the better default for everything else.',
 				'- **Alternate, do not repeat.** Consecutive sections with the same background are the same as no background at all. A light band between two plain sections does the work; five tinted bands in a row do not.',
-				'- **Recolour EVERY piece of text on a dark background, not just the heading.** Contrast belongs to the whole section, and a block you skip keeps its default dark text on your dark band. Each block has its own attribute: `styble/advanced-text` uses `textFillBg` for the heading and `subHeadingBg` for the sub-heading — both take the `(background)` shape, because Styble paints text by clipping a background to it. `styble/icon-list-item` uses `listTextColor`, `styble/accordion` uses `titleTextColor` and `contentTextColor`, `styble/separator` uses `separatorLabelColor`, `styble/icon-picker` uses `iconColor`, and `styble/icon-list` uses `iconListOrderedColor` for the numbers on an ordered list.',
+				'- **Recolour EVERY piece of text on a dark background, not just the heading.** Contrast belongs to the whole section, and a block you skip keeps its default dark text on your dark band. Each block has its own attribute, and they come in two shapes — check the tag on the block\'s own attribute list before writing either.',
+				'- **The heading pair takes the object.** On `styble/advanced-text`, `textFillBg` colours the heading and `subHeadingBg` the sub-heading. Both are tagged (background) and take the `(background)` OBJECT, because Styble paints text by clipping a background to it. See "Attribute value shapes".',
+				'- **Every other text colour takes a plain string.** `styble/icon-list-item` → `listTextColor`. `styble/accordion` → `titleTextColor` and `contentTextColor`. `styble/separator` → `separatorLabelColor`. `styble/icon-picker` → `iconColor`. `styble/icon-list` → `iconListOrderedColor` for the numbers on an ordered list. All are tagged (colour string): write `"#f8fafc"` or `"var(--styble-light-neutral)"`. Sending the `(background)` object to any of them is REJECTED.',
 				'- **Set `listTextColor` on every `styble/icon-list-item` individually.** There is no list-level colour that reaches the page; one set on the list itself paints nothing.',
 				'- **Leave `btnTextColor` alone unless you are deliberately inverting the button.** A button already arrives filled with the brand colour and light label text from the site\'s global button style, so it reads correctly on a dark band without your help. Setting a dark label on it is the one change that reliably makes a call to action worse.',
 				'- On a light or tinted background, leave all of these alone — the defaults are the brand\'s own text colours and are already right.',
@@ -395,6 +398,21 @@ class Styble_AI_Prompt {
 		if ( 'array' === $type ) {
 			return 'array';
 		}
+		// Plain strings normally get NO tag — they are the common case and tagging
+		// them all would bury the ones that matter. Colour is the documented
+		// exception: `textFillBg` and `subHeadingBg` take the `(background)` OBJECT
+		// shape and the prompt describes it prominently, so an untagged
+		// `listTextColor` sitting beside them reads as "same idea, same shape" and
+		// the model generalises the object to all of them. That was 22 of the 26
+		// validator errors in the 2026-07-29 baseline.
+		//
+		// Catalog-driven, not a hand-kept list: every colour-named attribute on the
+		// allowlist is `type: string` and every background-shaped one is
+		// `type: object` named `*Bg`, so the two sets cannot collide. A future
+		// colour attribute is tagged correctly the moment it is allowlisted.
+		if ( 'string' === $type && preg_match( '/colou?r/i', $attr ) ) {
+			return 'colour string';
+		}
 		if ( 'object' !== $type ) {
 			return '';
 		}
@@ -446,6 +464,11 @@ class Styble_AI_Prompt {
 		$icon       = null;
 		$background = null;
 		$flat_box   = null;
+		// Every (colour string) attribute, not just the first: the whole point is
+		// that the model can see the full set and match a name against it, rather
+		// than infer the shape from a neighbouring attribute. Deduplicated because
+		// the same name appears on more than one block.
+		$colour_string = array();
 
 		foreach ( $this->catalog->allowlisted_names() as $name ) {
 			foreach ( $this->catalog->editable_attrs( $name ) as $attr => $def ) {
@@ -465,8 +488,14 @@ class Styble_AI_Prompt {
 				if ( 'box' === $tag && null === $flat_box ) {
 					$flat_box = $def['default'];
 				}
+				if ( 'colour string' === $tag && ! in_array( $attr, $colour_string, true ) ) {
+					$colour_string[] = $attr;
+				}
 			}
 		}
+
+		sort( $colour_string );
+		$colour_string = $colour_string ? $colour_string : null;
 
 		$lines = array( '# Attribute value shapes', '' );
 
@@ -539,12 +568,30 @@ class Styble_AI_Prompt {
 			$lines[] = '';
 		}
 
+		// Stated BEFORE (background) on purpose. These two are the pair the model
+		// confuses, and the contrast only lands if the string case is already in
+		// mind when the object case is read. Listed here even though a string is
+		// not an object shape, because "which of the two colour shapes is this"
+		// is exactly the question this section is consulted to answer.
+		if ( null !== $colour_string ) {
+			$lines[] = '`(colour string)` — a PLAIN STRING. Not an object. A hex, or better, a brand variable:';
+			$lines[] = '';
+			$lines[] = '```json';
+			$lines[] = self::json( 'var(--styble-light-neutral)' );
+			$lines[] = '```';
+			$lines[] = '';
+			$lines[] = 'Attributes tagged this way: ' . implode( ', ', array_map( function ( $a ) {
+				return '`' . $a . '`';
+			}, $colour_string ) ) . '. Every one of them is a string. Sending the `(background)` object below to any of them is REJECTED.';
+			$lines[] = '';
+		}
+
 		if ( null !== $background ) {
 			// Curated rather than dumped, like the (responsive box) example above:
 			// the catalog default carries an empty solidColor and a stock gradient,
 			// which shows the key set but not a usable value. The keys here are the
 			// recorded ones, so the shape still cannot drift from the block.
-			$lines[] = '`(background)` — an object whose useful keys are one level down, under `color`. Set `style` to `bgColor` and put the colour in `solidColor`:';
+			$lines[] = '`(background)` — an object whose useful keys are one level down, under `color`. Set `style` to `bgColor` and put the colour in `solidColor`. **Only the attributes tagged (background) take this** — contrast with `(colour string)` above:';
 			$lines[] = '';
 			$lines[] = '```json';
 			$lines[] = self::json(

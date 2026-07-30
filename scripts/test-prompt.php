@@ -178,6 +178,109 @@ foreach ( $catalog->layout_ids() as $id ) {
 }
 check( true, 'every layout id is listed in the prompt' );
 
+// ── Colour shape disambiguation ───────────────────────────────────────────────
+//
+// The 2026-07-29 baseline lost 22 of its 26 validator errors to ONE ambiguity:
+// `textFillBg` and `subHeadingBg` take the `(background)` OBJECT and the prompt
+// documents that shape prominently, while `listTextColor`, `titleTextColor`,
+// `iconColor` and four others are plain strings that carried NO tag — so the
+// model generalised the object shape to all of them.
+//
+// These checks are structural, not textual: they walk the catalog and assert
+// every colour-named string attribute is tagged wherever it is advertised. A new
+// colour attribute added to the allowlist is therefore covered the moment it
+// appears, with no test edit — which is the property the old hand-written rule
+// sentence did not have.
+$colour_strings = array();
+$object_colours = array();
+foreach ( $catalog->allowlisted_names() as $name ) {
+	foreach ( $catalog->editable_attrs( $name ) as $attr => $def ) {
+		$type = isset( $def['type'] ) ? $def['type'] : 'mixed';
+		if ( ! preg_match( '/colou?r/i', $attr ) ) {
+			continue;
+		}
+		if ( 'string' === $type ) {
+			$colour_strings[ $attr ] = true;
+		} elseif ( 'object' === $type ) {
+			$object_colours[ $attr ] = true;
+		}
+	}
+}
+$colour_strings = array_keys( $colour_strings );
+
+check( ! empty( $colour_strings ), 'the catalog has colour-named string attributes to disambiguate' );
+
+// The premise the tag rule rests on: no colour-NAMED attribute is object-typed,
+// so "name matches /colour/ and type is string" can never mis-tag a background.
+// If a future block breaks this, the rule in attr_tag() needs a real allowlist
+// and this check is where that becomes visible.
+check(
+	empty( $object_colours ),
+	'no colour-named attribute is object-typed (the tag rule stays unambiguous)'
+		. ( $object_colours ? ' — found: ' . implode( ', ', array_keys( $object_colours ) ) : '' )
+);
+
+$untagged = array();
+foreach ( $colour_strings as $attr ) {
+	// Every advertised occurrence must carry the tag — not just the first. An
+	// attribute listed on two blocks with the tag on only one is exactly the
+	// inconsistency that taught the model to guess.
+	if ( preg_match_all( '/\b' . preg_quote( $attr, '/' ) . '\b(?! \(colour string\))/', $text, $m ) ) {
+		// Occurrences outside a block's attr list (prose mentions) are fine, so
+		// only count the ones inside an "— attrs:" line.
+		foreach ( explode( "\n", $text ) as $line ) {
+			if ( false === strpos( $line, '— attrs:' ) ) {
+				continue;
+			}
+			if ( preg_match( '/\b' . preg_quote( $attr, '/' ) . '\b(?! \(colour string\))/', $line ) ) {
+				$untagged[] = $attr;
+				break;
+			}
+		}
+	}
+}
+check(
+	! $untagged,
+	'every colour string attribute is tagged (colour string) in every block list'
+		. ( $untagged ? ' — untagged: ' . implode( ', ', array_unique( $untagged ) ) : '' )
+);
+
+// The shapes section must define the tag, and must name the full set — the model
+// matches an attribute name against that list rather than inferring from a
+// neighbour.
+check( false !== strpos( $text, '`(colour string)`' ), 'the shapes section defines (colour string)' );
+$missing_from_shapes = array();
+foreach ( $colour_strings as $attr ) {
+	if ( false === strpos( $text, '`' . $attr . '`' ) ) {
+		$missing_from_shapes[] = $attr;
+	}
+}
+check(
+	! $missing_from_shapes,
+	'every colour string attribute is named in the shapes section'
+		. ( $missing_from_shapes ? ' — missing: ' . implode( ', ', $missing_from_shapes ) : '' )
+);
+
+// The two shapes must be stated as mutually exclusive somewhere the model reads.
+// Without this the tags exist but nothing says the object is wrong on a string.
+check(
+	false !== stripos( $text, 'PLAIN STRING, never an object' ),
+	'the prompt states (colour string) is never an object'
+);
+check(
+	false !== stripos( $text, 'Go by the tag' ),
+	'the prompt tells the model to go by the tag, not by "it is a colour"'
+);
+
+// The background pair must still be tagged (background) — the fix must not have
+// flattened both shapes into one.
+foreach ( array( 'textFillBg', 'subHeadingBg' ) as $bg_attr ) {
+	check(
+		false !== strpos( $text, $bg_attr . ' (background)' ),
+		"{$bg_attr} is still tagged (background)"
+	);
+}
+
 echo "\n";
 printf( "%d checks, %d failed\n", $checks, $failures );
 exit( $failures ? 1 : 0 );
