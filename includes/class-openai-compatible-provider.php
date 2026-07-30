@@ -51,6 +51,24 @@ class Styble_AI_OpenAI_Compatible_Provider {
 	 */
 	const MAX_TOKENS = 4096;
 
+	/**
+	 * Token usage from the most recent call, or an empty array.
+	 *
+	 * Mirrors Styble_AI_Anthropic_Provider::last_usage() so a caller does not have
+	 * to know which provider ran. Still the provider's OWN shape — normalise it
+	 * through Styble_AI_Usage_Tracker before comparing the two.
+	 *
+	 * @var array
+	 */
+	private static $last_usage = array();
+
+	/**
+	 * @return array Usage from the last complete() call, in the provider's shape.
+	 */
+	public static function last_usage() {
+		return self::$last_usage;
+	}
+
 	private $api_key;
 	private $model;
 	private $endpoint;
@@ -136,6 +154,7 @@ class Styble_AI_OpenAI_Compatible_Provider {
 	 *     @type array  $messages    List of [ role, text, image ] (image optional data URL).
 	 *     @type int    $max_tokens  Optional output budget.
 	 *     @type float  $temperature Optional sampling temperature.
+	 *     @type string $operation   Optional label for token accounting: plan|section|edit.
 	 * }
 	 *
 	 * @return array|WP_Error Tool arguments, or an error.
@@ -190,7 +209,7 @@ class Styble_AI_OpenAI_Compatible_Provider {
 			),
 		);
 
-		return $this->send( $body, $tool['name'] );
+		return $this->send( $body, $tool['name'], isset( $spec['operation'] ) ? (string) $spec['operation'] : 'section' );
 	}
 
 	/**
@@ -249,10 +268,12 @@ class Styble_AI_OpenAI_Compatible_Provider {
 	 *
 	 * @param array  $body      Request body.
 	 * @param string $tool_name Expected function name.
+	 * @param string $operation Label for token accounting.
 	 *
 	 * @return array|WP_Error
 	 */
-	private function send( array $body, $tool_name ) {
+	private function send( array $body, $tool_name, $operation = 'section' ) {
+		$started = microtime( true );
 		$headers = array(
 			'content-type'  => 'application/json',
 			'authorization' => 'Bearer ' . $this->api_key,
@@ -279,6 +300,24 @@ class Styble_AI_OpenAI_Compatible_Provider {
 		$code = wp_remote_retrieve_response_code( $response );
 		$raw  = wp_remote_retrieve_body( $response );
 		$data = json_decode( $raw, true );
+
+		// This path reported nothing until now, so every OpenAI-compatible
+		// generation was unaccounted for. The block is a different shape from
+		// Anthropic's — prompt_tokens INCLUDES any cached portion, where
+		// input_tokens excludes it — which is what the tracker normalises.
+		// Recorded before the error branches, because a rejected response was
+		// still generated and still billed.
+		if ( is_array( $data ) && isset( $data['usage'] ) && is_array( $data['usage'] ) ) {
+			self::$last_usage = $data['usage'];
+			Styble_AI_Usage_Tracker::record(
+				$this->provider_label(),
+				$this->model,
+				$operation,
+				$data['usage'],
+				(int) round( ( microtime( true ) - $started ) * 1000 ),
+				(int) $code
+			);
+		}
 
 		if ( $code < 200 || $code >= 300 ) {
 			$msg = 'HTTP ' . $code;

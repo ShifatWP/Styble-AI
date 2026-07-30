@@ -76,6 +76,26 @@ function __( $text, $domain = '' ) {
 	return $text;
 }
 
+// Both providers now hand every usage block to Styble_AI_Usage_Tracker. Its own
+// invariants are asserted by scripts/test-usage-tracker.php; here the stubs exist
+// so the recording path is exercised rather than mocked away — if a provider ever
+// calls record() with the wrong shape, this file fails too.
+function update_option( $key, $value, $autoload = null ) {
+	return true;
+}
+
+function delete_option( $key ) {
+	return true;
+}
+
+function apply_filters( $hook, $value ) {
+	return $value;
+}
+
+function wp_parse_url( $url, $component = -1 ) {
+	return parse_url( $url, $component ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+}
+
 /**
  * Bodies captured from wp_remote_post, newest last.
  *
@@ -123,6 +143,7 @@ $root = dirname( __DIR__ );
 require_once $root . '/includes/class-catalog.php';
 require_once $root . '/includes/class-brand-context.php';
 require_once $root . '/includes/class-prompt.php';
+require_once $root . '/includes/class-usage-tracker.php';
 require_once $root . '/includes/class-anthropic-provider.php';
 require_once $root . '/includes/class-openai-compatible-provider.php';
 
@@ -312,6 +333,19 @@ $usage = Styble_AI_Anthropic_Provider::last_usage();
 check( ! empty( $usage ), 'last_usage() returns the usage block' );
 check( isset( $usage['cache_creation_input_tokens'] ), 'cache_creation_input_tokens is readable' );
 check( isset( $usage['cache_read_input_tokens'] ), 'cache_read_input_tokens is readable' );
+
+$tracked = Styble_AI_Usage_Tracker::last();
+check( ! empty( $tracked ), 'the provider reached the usage tracker' );
+check(
+	41 === $tracked['in'] && 5610 === $tracked['cache_write'] && 0 === $tracked['cache_read'],
+	'tracker read the Anthropic shape correctly',
+	'in:41 write:5610 read:0'
+);
+check(
+	5651 === $tracked['prompt'],
+	'prompt = in + write + read',
+	'Anthropic input_tokens EXCLUDES the cached part'
+);
 
 /* ------------------------------------------------------------------ */
 echo "\nEMPTY SYSTEM PROMPT\n";

@@ -31,6 +31,8 @@ require_once STYBLE_AI_DIR . 'includes/class-brand-context.php';
 require_once STYBLE_AI_DIR . 'includes/class-prompt.php';
 require_once STYBLE_AI_DIR . 'includes/class-validation-result.php';
 require_once STYBLE_AI_DIR . 'includes/class-validator.php';
+// Before the providers: both record every response through it.
+require_once STYBLE_AI_DIR . 'includes/class-usage-tracker.php';
 require_once STYBLE_AI_DIR . 'includes/class-anthropic-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-openai-compatible-provider.php';
 require_once STYBLE_AI_DIR . 'includes/class-provider-factory.php';
@@ -43,6 +45,7 @@ require_once STYBLE_AI_DIR . 'includes/class-page-model.php';
 require_once STYBLE_AI_DIR . 'includes/class-rest-controller.php';
 require_once STYBLE_AI_DIR . 'includes/class-chat-controller.php';
 require_once STYBLE_AI_DIR . 'includes/class-chat-page.php';
+require_once STYBLE_AI_DIR . 'includes/class-usage-page.php';
 require_once STYBLE_AI_DIR . 'includes/class-settings.php';
 
 /**
@@ -50,6 +53,7 @@ require_once STYBLE_AI_DIR . 'includes/class-settings.php';
  */
 function styble_ai_boot() {
 	( new Styble_AI_Chat_Page() )->register();
+	( new Styble_AI_Usage_Page() )->register();
 	( new Styble_AI_Settings() )->register();
 	( new Styble_AI_REST_Controller() )->register();
 	( new Styble_AI_Chat_Controller() )->register();

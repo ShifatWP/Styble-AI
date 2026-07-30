@@ -55,6 +55,7 @@ class Styble_AI_Page_Planner {
 	 */
 	public function plan( $message, array $existing = array() ) {
 		$spec = array(
+			'operation' => 'plan',
 			'system'   => $this->system_prompt(),
 			'tool'     => array(
 				'name'         => self::TOOL_NAME,

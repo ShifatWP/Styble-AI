@@ -50,7 +50,12 @@ class Styble_AI_Anthropic_Provider {
 	 * cache_read_input_tokens, and the only way to know whether the prefix cache
 	 * is actually working is to read them: a zero cache_read across repeated
 	 * calls means something in the prefix is not byte-identical, and that failure
-	 * is otherwise completely silent. Read by scripts/eval.php.
+	 * is otherwise completely silent.
+	 *
+	 * This is the provider's OWN shape, kept for the one caller that wants the
+	 * raw block. Anything comparing the two providers goes through
+	 * Styble_AI_Usage_Tracker, which reconciles them — the two shapes count
+	 * cached tokens differently and adding them alike is wrong.
 	 *
 	 * @var array
 	 */
@@ -76,6 +81,7 @@ class Styble_AI_Anthropic_Provider {
 	 *     @type array  $tool       name, description, input_schema.
 	 *     @type array  $messages   List of [ role, text, image ] (image optional data URL).
 	 *     @type int    $max_tokens Optional output budget.
+	 *     @type string $operation   Optional label for token accounting: plan|section|edit.
 	 * }
 	 *
 	 * @return array|WP_Error Tool input, or an error.
@@ -114,7 +120,7 @@ class Styble_AI_Anthropic_Provider {
 		// and later and now return a 400. The OpenAI-compatible path still sends
 		// one, where it remains valid.
 
-		return $this->send( $body, $tool['name'] );
+		return $this->send( $body, $tool['name'], isset( $spec['operation'] ) ? (string) $spec['operation'] : 'section' );
 	}
 
 	/**
@@ -229,10 +235,12 @@ class Styble_AI_Anthropic_Provider {
 	 *
 	 * @param array  $body      Request body.
 	 * @param string $tool_name Expected tool name.
+	 * @param string $operation Label for token accounting.
 	 *
 	 * @return array|WP_Error
 	 */
-	private function send( array $body, $tool_name ) {
+	private function send( array $body, $tool_name, $operation = 'section' ) {
+		$started  = microtime( true );
 		$response = wp_remote_post(
 			self::ENDPOINT,
 			array(
@@ -256,10 +264,21 @@ class Styble_AI_Anthropic_Provider {
 
 		// Recorded before the error branches: a truncated or tool-less response
 		// still reports what the prefix cost, which is exactly when you want to
-		// know whether the cache was read.
+		// know whether the cache was read — and it is still billed.
 		self::$last_usage = ( is_array( $data ) && isset( $data['usage'] ) && is_array( $data['usage'] ) )
 			? $data['usage']
 			: array();
+
+		if ( self::$last_usage ) {
+			Styble_AI_Usage_Tracker::record(
+				'anthropic',
+				$this->model,
+				$operation,
+				self::$last_usage,
+				(int) round( ( microtime( true ) - $started ) * 1000 ),
+				(int) $code
+			);
+		}
 
 		if ( $code < 200 || $code >= 300 ) {
 			$msg = isset( $data['error']['message'] ) ? $data['error']['message'] : 'HTTP ' . $code;

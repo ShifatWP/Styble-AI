@@ -87,7 +87,7 @@ class Styble_AI_Generator {
 	 * @return array|WP_Error { tree, attempts } or an error.
 	 */
 	public function generate( $request, $image = '' ) {
-		return $this->run( $request, $image );
+		return $this->run( $request, $image, 'section' );
 	}
 
 	/**
@@ -110,19 +110,22 @@ class Styble_AI_Generator {
 			. "Apply this edit and emit the FULL replacement for that selection: " . $instruction . "\n\n"
 			. 'Keep everything the user did not ask you to change, including the existing copy.';
 
-		return $this->run( $request, '' );
+		return $this->run( $request, '', 'edit' );
 	}
 
 	/**
 	 * Ask, validate, and ask once more with the errors if needed.
 	 *
-	 * @param string $request User-facing request text.
-	 * @param string $image   Optional data URL.
+	 * @param string $request   User-facing request text.
+	 * @param string $image     Optional data URL.
+	 * @param string $operation 'section' or 'edit', for usage accounting.
 	 *
 	 * @return array|WP_Error
 	 */
-	private function run( $request, $image ) {
+	private function run( $request, $image, $operation = 'section' ) {
 		$spec = array(
+			// Labels the call for token accounting; providers ignore it otherwise.
+			'operation' => $operation,
 			'system' => $this->prompt->system_prompt(),
 			'tool'   => array(
 				'name'         => $this->prompt->tool_name(),
