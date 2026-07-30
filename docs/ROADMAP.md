@@ -1,12 +1,19 @@
 # Styble AI — roadmap and progress
 
-**Updated:** 2026-07-29 (evening) · **Branch:** `ai-evals` · **Contract:** `emit_layout` 0.1.0
+**Updated:** 2026-07-30 · **Branch:** `ai-evals` · **Contract:** `emit_layout` 0.1.0
 
 This file tracks **where the experiment actually is**. It does not restate the
 reasoning — that lives in [`EXPERIMENT_PLAN.md`](EXPERIMENT_PLAN.md), which owns the
 stages and their bars, and in the deck (`~/styble-ai-architecture/styble-ai-architecture.html`),
 which owns the destination. This file answers one question: *what is proven, what
 is built but unproven, and what is next?*
+
+**How the work gets done** is now [`ZIPAI_SELECTIVE_PORT.md`](ZIPAI_SELECTIVE_PORT.md)
+— phases, decisions S1–S4, and the reference implementation it ports from
+([`SPECTRA_AI_IMPLEMENTATION.md`](SPECTRA_AI_IMPLEMENTATION.md), ZIP AI and Spectra
+Blocks read from source). That plan defers to this file on readiness: where the two
+disagree about whether something is done, **this one wins** — it has the
+measurements.
 
 Keep it honest. A stage is not "done" because its code exists — it is done when it
 meets the bar that was stated before the run.
@@ -32,7 +39,7 @@ meets the bar that was stated before the run.
 | **1** | Block choice | Right blocks from plain words? | ≥90% target · ≥80% floor · n≥30 | ⚪ Not started |
 | **2** | Attribute edit | Right attr → right value, nothing else? | ≥90% key+value · **0% collateral** | 🟡 **Model + tools built, 38 checks; eval suite not written** |
 | **3** | One section | Blocks + attrs + layout composed | ≥85% first-try valid · 100% after retry · ≥80% "would ship" | 🔴 **65–75% first-try — below the bar** |
-| **4** | ⭐ Conversational edit | Change one thing, nothing else moves | ≥90% intended · 0% collateral · ≤6 tool calls | ⚪ Not started — `update_block` exists, the loop does not |
+| **4** | ⭐ Conversational edit | Change one thing, nothing else moves | ≥90% intended · 0% collateral · ≤6 tool calls | ⚪ Not started — `update_block` exists, neither engine does. **Shape now settled: one-shot + loop** |
 | **5** | Whole pages | Does a page hold together? | ≥80% need no structural edit | ⚪ Built, unmeasured |
 | **6** | Distribution (MCP) | — | — | ⚪ Deferred until 4 passes |
 
@@ -52,16 +59,20 @@ every stage sits on.
 | Headless applier (`uniqueId`, layout maths, card padding) | **42 checks**; verified in a real WP install | **High** |
 | Editor applier (`createBlock` → `insertBlocks`) | Shares the catalog layout table; maths mirrored line-for-line | **High** |
 | Canonical page model (uid addressing, `get_block`/`update_block`) | **38 checks**. Resolved uids compared against the applier's own output, so the two cannot drift | **High** |
-| Request body + cache prefix | **24 checks** — breakpoint placement, byte-identical prefix across a retry | **High** |
+| Request body + cache prefix | **27 checks** — breakpoint placement, byte-identical prefix across a retry | **High** |
 | Retry loop | **7 cases** against a stub provider | **High** |
 | Prompt + tool schema invariants | **33 checks** | **High** |
+| Usage accounting across both provider shapes | **43 checks** — trim keeps today, drops the oldest | **High** |
 | Providers (Anthropic + 9 OpenAI-compatible) | Runs | **Medium** — no 429 handling in the plugin (deliberate) |
 | Stock photo fill | Runs; every failure non-fatal and reported | **Medium** |
 | Section generation from a prompt | **65–75% first-try valid**, n=20, two runs | **Measured, below bar** |
 | Whole-page chat screen | Runs | **Unknown — never measured** |
 | "Edit with AI" on a selection | Runs | **Low** — regenerates the whole selection (the deck's naive column) |
+| Design Library — patterns served + consumed | `styble-patterns-provider` (`/pattern-list`, `/single-pattern`) + Styble Pro's `Ready_Patterns.php` and `src/prebuild-library/` | **Ships today, but not AI-addressable** — see Stage 3's trigger |
 
-Six WP-free suites, **164 checks**, all passing.
+Seven WP-free suites, **190 checks + 47 fixtures**, all passing (re-run 2026-07-30).
+The earlier "six suites, 164 checks" predates `test-usage-tracker.php` and three
+checks added to `test-provider-body.php`.
 
 Measured prompt surface, 2026-07-29:
 
@@ -261,6 +272,24 @@ is the fallback. But the current number is confounded by a fixable prompt bug an
 unbounded noise band, so it does not yet justify anything. Fix the shape tags,
 re-measure with the spread known, and *then* decide.
 
+> **The cost of that trigger dropped, verified 2026-07-30.** This entry assumed the
+> pattern library had to be *built*. It does not — both halves ship today:
+> `styble-patterns-provider` serves (`GET /pattern-list`, `POST /single-pattern`,
+> 12-hour cache, patterns authored as a CPT), and Styble Pro consumes it at
+> `blocks/Dashboard/Ready_Patterns.php` + `src/prebuild-library/`. What is missing is
+> three tools — `search-patterns`, `insert-pattern`, `fill-slots`.
+>
+> This is also Spectra's *entire* first-generation AI: human-designed templates plus
+> AI-written copy (`lib/gutenberg-templates/`, `ai/v1/content`). We have two-thirds
+> of it already.
+>
+> The caution below still stands — building it before Stage 3 is measured destroys
+> the evidence that freeform failed. But the trade is no longer "weeks of library
+> work versus a measurement"; it is "three tools versus a measurement". Validate
+> patterns **at ingest**, once, by a human: a pattern that fails the validator is a
+> library bug, not a per-request model failure. That is the structural advantage over
+> freeform and the reason the phase pays.
+
 ---
 
 ## Stage 4 — ⭐ the moat: conversational editing ⚪
@@ -268,10 +297,41 @@ re-measure with the spread known, and *then* decide.
 The deck's differentiator, and the thing never built. What ships today under
 "Edit with AI" regenerates the whole selection.
 
+**Shape settled 2026-07-30** against a read reference implementation — see
+`docs/ZIPAI_SELECTIVE_PORT.md` §7 and `docs/SPECTRA_AI_IMPLEMENTATION.md` §13b.
+Stage 4 is **two engines, not one loop**, because ZIP AI runs it that way
+deliberately and the reasoning holds here:
+
+| Engine | For | Shape |
+|---|---|---|
+| **One-shot** | a scoped rewrite: one block, or one section's text | single provider call, **no loop**, applies via the page model so native undo survives |
+| **Agent loop** | anything structural — add, move, delete, relayout | N tool calls per turn, `tool_choice: auto`, scope-locked |
+
+Routing is decided **in code** from the selection and the instruction shape, never
+by the model — the same reasoning that makes `page_wide` a derived boolean rather
+than a prompt question. A prompt-decided route is a prompt-defeatable route.
+
+Whole-page generation is **not** part of this. It stays the service it already is
+(`class-page-planner.php` + the per-section pipeline). ZIP AI has no page-creation
+tool either: its page builder is a server-side service writing back through one
+ability that is explicitly hidden from the model.
+
 - [x] `get_block` · `update_block` — built in Stage 2, 38 checks
-- [ ] The rest of the surface: `get_page` · `insert_block` · `move_block` · `delete_block` · `duplicate_block`
-- [ ] Tool-calling loop, `tool_choice: auto`, destructive tools gated
-- [ ] Diff application — re-serialize only the changed subtree
+- [ ] **One-shot engine first** — smallest, clearest bar, and it immediately replaces
+      the Low-trust "Edit with AI". Proves the write path before a loop exists to
+      confuse the diagnosis. Take ZIP AI's section fan-out with it: bin-pack a
+      container's text descendants into batches (80 total / 40 per call / 24k est
+      tokens), so one-shot scales to a whole section without becoming a loop
+- [ ] The rest of the tool surface: `get_page` · `insert_block` · `move_block` ·
+      `delete_block` · `duplicate_block` · `replace_block`
+- [ ] `update_block` returns **`unknown_attrs` + a hint naming the right attribute**.
+      ZIP AI's documented failure: an attr the block does not define is silently
+      dropped, the model never sees the edit complete, and it retries forever. Our
+      catalog knows the correct name, so the hint can be specific rather than a bare
+      miss report
+- [ ] Tool-calling loop, destructive tools gated, per-turn token budget
+- [ ] Scope enforcement in the **executor**, not the prompt — every mutating call
+      must target the selected uid or a descendant
 - [ ] `evals/edit/cases.json` — ~25 instructions against fixed pages
 
 This is also the structural fix for the `attrs` union problem: a call naming one
@@ -297,9 +357,28 @@ capability nobody has measured.
 ## Stage 6 — distribution (MCP) ⚪
 
 Deferred until Stage 4 passes, deliberately. Wrap the one executor built in Stage 4
-as a Streamable-HTTP MCP server. Also the natural moment to revisit PHP-in-WordPress
-versus the deck's Python/LangGraph service — by then the tool surface is defined by
-its tests, so porting is mechanical rather than speculative.
+as an MCP server. Also the natural moment to revisit PHP-in-WordPress versus the
+deck's Python/LangGraph service — by then the tool surface is defined by its tests,
+so porting is mechanical rather than speculative.
+
+**Shape now known** — `docs/SPECTRA_AI_IMPLEMENTATION.md` §6 documents a working
+one: a single `POST /{ns}/mcp` route, strict JSON-RPC 2.0, four methods
+(`initialize` · `tools/list` · `tools/call` · `notifications/initialized`). Worth
+taking with it:
+
+- **Whitelisted meta forwarding**, so the payload stays bounded and new internal
+  fields cannot leak by accident
+- **`outputSchema` when declared** — the response contract as schema, not prose
+- **`tool_type` forwarded**, so a consumer reads the source-of-truth annotation
+  instead of guessing from the tool name
+- **Identity bound to the credential, not asserted by the caller** — they retired an
+  `x_wp_user_id` header gate to get there
+- **Exclude introspection tools.** Their post-mortem: the consumer already holds
+  every `inputSchema`, and a name-resolution mismatch made the introspection call
+  return a misleading "invalid permissions" that dead-ended recovery
+
+This is what makes decision #19 (S1) safe: with MCP up, a remote brain is a client
+of a tested surface, not a rewrite.
 
 ---
 
@@ -308,7 +387,7 @@ its tests, so porting is mechanical rather than speculative.
 | Deck phase | Our stage | State |
 |---|---|---|
 | 1 — Foundation: page model + `resolve_attrs` + serialize | Prerequisite | ✅ **Built.** Catalog · nesting rules · serializer · validator · **uid page model, 38 checks** |
-| 2 — Pattern library + `search_patterns` / `insert_pattern` / `fill_slots` | Stage 3's failure branch | Not built, **on purpose** |
+| 2 — Pattern library + `search_patterns` / `insert_pattern` / `fill_slots` | Stage 3's failure branch | **Library ships** (`styble-patterns-provider` + Styble Pro's Ready Patterns); the three tools are not built, **on purpose** |
 | 3 — Freeform `set_page_layout` fallback | Stages 0/3 | **Built, and currently the foundation rather than the fallback** — the inversion Stage 3 exists to judge |
 | 4 — ⭐ Edit tools | Stages 2 + 4 | ⚠️ **`get_block`/`update_block` built.** The tool-calling loop and the other five mutators are not |
 | 5 — MCP | Stage 6 | Deferred |
@@ -357,6 +436,10 @@ same ground being re-argued.
 | 16 | No persistence in the eval harness | **Decision, not a measurement** — cache and run records removed at the owner's request | Re-scoring now costs a fresh run, and `compare=A with=B` is gone. Detecting a change requires several live runs averaged. Stage 0's bar was rewritten to match what the harness can do |
 | 17 | Infrastructure failures were being cached as model results | **Measured** — a run pointed at the wrong provider wrote four `Invalid API Key` entries indistinguishable from real measurements | Fixed with a cacheable-outcome allowlist, then made moot by #16. A provider/key mismatch now refuses to run at all |
 | 18 | Run-to-run variance is ±10 points | **Measured** — two identical runs of the 20-case suite scored 75% and 65%, with three failure modes appearing in one and not the other | **A single run cannot detect a change.** The model is non-deterministic and the OpenAI-compatible path sends `temperature: 0.7`. This is now the binding constraint on the whole experiment |
+| 19 | **S1 — the agent loop stays local and in PHP.** No remote brain | **Reasoned against a read reference implementation.** ZIP AI ships no model: prompting and planning live on `brain.zipwp.com`, and the plugin is a tool host. That choice is *why* it needs MCP, App Passwords, an HMAC secret, Redis BRPOP and a 20-second timing invariant | BYO key is the product, and a local loop is testable offline against a stub as `test-generator.php` already is. Stage 6 exposes the same tool surface over MCP, so a remote brain later becomes a **client of a tested surface** rather than a rewrite. Revisit when the business decides to ship hosted |
+| 20 | **S2 — headless stays the primary write path** | **Reasoned.** ZIP AI's editor tools cannot run headless; `class-page-applier.php` does the same mutations headless with 42 checks | A browser bridge is added *beside* headless (for a live unsaved editor session), never instead. Their four dedup mechanisms come with it — the marker-before-mutation one especially |
+| 21 | **S3 — keep catalog-driven block attributes.** No Tailwind-style className/JIT contract | **Measured on both sides, and this is the arguable one.** Styble Pro has no utility-class engine; Spectra's is **14,303 lines** (`JitCompiler` 4,140 + `ClassRegistry` 5,665 + Engine/Sanitizer/renderer/stripper). Adopting it also discards the validator's exact per-block attribute knowledge — the thing ZIP AI has to approximate with `unknown_attrs` feedback | Refused **for now**. But 22 of 26 baseline validator errors are attribute-shape confusion, which is evidence *for* Spectra's approach: Tailwind is in every model's training data, our 63 curated attributes are not. **Trigger: if shape errors survive the colour-tag fix, re-open** |
+| 22 | **S4 — the tool surface stays inside the page** | **Reasoned.** ZIP AI is a site manager: **11,103 lines** of abilities (plugins, themes, WP-CLI, arbitrary REST) plus **5,697** of executable code snippets. Its entire guardrail stack — a 16-capability denylist, shell-operator rejection, auto-disable-on-fatal, a 715-line lint — exists *because* those tools exist | We build pages. Inherit one item (protected-options `pre_update_option_<key>` backstop) as cheap defence and skip the rest by **not building the hazard**. A tool touching anything outside the page needs a written argument |
 
 ---
 
@@ -366,9 +449,12 @@ Each with the trigger that would change the answer.
 
 | Deferred | Why | Revisit when |
 |---|---|---|
-| Pattern library | Building it before Stage 3 destroys the evidence that freeform failed | Stage 3 misses its bar |
+| Pattern library **tools** | Building them before Stage 3 destroys the evidence that freeform failed. Note the library itself already ships — only `search-patterns` / `insert-pattern` / `fill-slots` are missing | Stage 3 misses its bar, and steps 2–3 of the gate are done |
 | Python / LangGraph port | Would rewrite the catalog, validator and applier — our three High-trust assets — into a language where they have no tests, to answer a deployment question nobody has asked | Stage 6 |
 | MCP server | Wraps the Stage 4 executor. Nothing to wrap yet | Stage 4 passes |
+| Remote brain / hosted loop | Decision #19 (S1). BYO key is the product; a local loop is offline-testable | The business decides to ship hosted — and by then Stage 6 makes it a client, not a rewrite |
+| className / JIT styling contract | Decision #21 (S3). 14,303 lines in Styble Pro plus inverting all 63 catalog attrs | Attribute-shape errors survive the gate's step 1 |
+| Site management, WP-CLI, arbitrary REST, code snippets | Decision #22 (S4). 16,800 lines, and the guardrail stack they require | A written argument per tool |
 | Hosted proxy + credits | Business layer. Do it after the product works | Stage 5 passes |
 | 429 handling in the plugin | Production should surface a rate limit to the user fast; only an eval run should be patient | If a real user hits it often enough to complain |
 | Caching on the OpenAI-compatible path | `cache_control` is Anthropic's parameter; strict endpoints reject unknown fields. A win that breaks generation on eight providers is not a win | Never, as one change. Per-provider gating if it ever matters |
@@ -378,18 +464,40 @@ Each with the trigger that would change the answer.
 
 ---
 
-## Next three things, in order
+## The gate — four things, in order, before anything else starts
+
+This is Phase 0 of `docs/ZIPAI_SELECTIVE_PORT.md`, and it is a **hard gate**: every
+phase after it changes model-facing surface, so none of them is measurable until
+this is done. The plan enforces it by making Phase A's bar "one eval run inside the
+Phase-0 spread" — a sentence with no meaning until the spread is known.
 
 1. **Fix the colour shape ambiguity.** `listTextColor`, `btnTextColor`, `iconColor`,
-   `titleTextColor`, `contentTextColor` are plain strings sitting beside two
-   background-shaped ones, with no tag distinguishing them — and the model
-   generalises the object shape to all of them. That is 22 of the 26 validator
-   errors in the baseline. Small prompt change, largest single win available.
+   `titleTextColor`, `contentTextColor`, `separatorLabelColor`,
+   `iconListOrderedColor` are plain strings sitting beside two background-shaped
+   ones, with no tag distinguishing them — and the model generalises the object
+   shape to all of them. That is 22 of the 26 validator errors in the baseline.
+   Small prompt change, largest single win available.
+
+   **Cheaper than it looked, verified 2026-07-30:** the catalog already types them
+   (`textFillBg`/`subHeadingBg` → `type=object`, the other seven → `type=string`).
+   So the tag can be emitted from `editable[attr].type` rather than hand-maintained.
+   The offender is one sentence — `class-prompt.php:278` — which names eight colour
+   attributes together, two of them object-shaped. Split it, and add a
+   `test-prompt.php` check asserting every `type=string` colour attr carries a tag.
+
+   This also **tests decision #21 (S3)**: if shape confusion survives a correct
+   prompt, that is real evidence the className grammar is the better substrate.
 2. **Bound the spread.** Two more runs, unchanged, to learn whether ±10 points is
    the band. Without it, step 1 cannot be shown to have worked — a 70% next run
    proves nothing either way.
 3. **Then falsify the harness**: break the prompt deliberately and confirm the
    number moves beyond the spread. An eval that cannot move is not measuring.
+4. **Per-provider key options.** One shared `styble_ai_api_key` (blocker B3) means
+   two providers cannot be held at once, so the target-versus-floor split — which the
+   plan calls the most useful signal available — is unreachable. Without it, "our
+   tools are bad" cannot be told from "this model cannot do it", which is exactly the
+   confound sitting on the current 65–75%. ~20 lines across `class-settings.php` and
+   `class-provider-factory.php`.
 
 Stage 1's block-purpose lines remain the cheapest suspected quality win, but they
 are now *behind* the measurement work: with a ±10 band and no ability to re-score,
@@ -401,17 +509,19 @@ landing a change we cannot evaluate is how the project got here.
 
 ```
 php scripts/generate-catalog.php     # regenerate from Styble Pro
-php scripts/validate.php             # 47 contract fixtures + code coverage + code coverage
-php scripts/test-generator.php       # the retry loop, against a stub provider
-php scripts/test-page-applier.php    # headless layout maths + uniqueId + markup
-php scripts/test-prompt.php          # invariants of the prompt and tool schema
-php scripts/test-provider-body.php   # request body shape + cache prefix stability
-php scripts/test-page-model.php      # uid addressing + granular edits
+php scripts/validate.php             # 47 fixtures + all 31 codes covered
+php scripts/test-generator.php       # 7 cases  — the retry loop, stub provider
+php scripts/test-page-applier.php    # 42 checks — layout maths, uniqueId, markup
+php scripts/test-page-model.php      # 38 checks — uid addressing, granular edits
+php scripts/test-prompt.php          # 33 checks — prompt + tool schema invariants
+php scripts/test-provider-body.php   # 27 checks — body shape, cache prefix stability
+php scripts/test-usage-tracker.php   # 43 checks — the two providers' usage shapes
 php scripts/dump-prompt.php          # exactly what the model is told
 ```
 
-None of those need WordPress or an API key. The eval runner is the only one that
-does — and the only one that measures the model rather than the code.
+Seven suites, **190 checks + 47 fixtures**. None need WordPress or an API key. The
+eval runner is the only one that does — and the only one that measures the model
+rather than the code.
 
 **Rules that keep this file worth reading:** a stage moves to 🟢 only when its stated
 bar is met. Cases are added when they fail in real use and **never removed to make a
