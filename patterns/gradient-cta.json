@@ -1,0 +1,41 @@
+{
+  "name": "Gradient band — heading and sub-heading",
+  "intent": "A gradient band carrying a headline and supporting line. No button — pair it with a hero or add one if the section needs to convert.",
+  "tags": [
+    "gradient",
+    "band",
+    "headline",
+    "statement",
+    "divider",
+    "accent",
+    "colour"
+  ],
+  "tree": {
+    "version": "0.1.0",
+    "root": {
+      "block": "styble/container",
+      "attrs": {
+        "sectionBg": {
+          "color": {
+            "style": "gradient",
+            "gradient": "linear-gradient(135deg, var(--styble-primary) 0%, var(--styble-accent) 100%)"
+          }
+        }
+      },
+      "children": [
+        {
+          "block": "styble/column",
+          "children": [
+            {
+              "block": "styble/advanced-text",
+              "attrs": {
+                "advancedTextContent": "Start your free trial",
+                "textHTMLTag": "h2"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

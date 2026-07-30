@@ -1,0 +1,141 @@
+{
+  "name": "Feature list with icons",
+  "intent": "An icon list of features or benefits, for scannable detail.",
+  "tags": [
+    "features",
+    "benefits",
+    "icons",
+    "list",
+    "bullets",
+    "why",
+    "scannable"
+  ],
+  "tree": {
+    "version": "0.1.0",
+    "root": {
+      "block": "styble/container",
+      "attrs": {
+        "layout": "l-3-equal",
+        "layoutSelected": true,
+        "columns": 3,
+        "containerWidth": "boxed"
+      },
+      "children": [
+        {
+          "block": "styble/column",
+          "children": [
+            {
+              "block": "styble/info-box",
+              "attrs": {
+                "layoutType": "layout1",
+                "contentAlign": "center"
+              },
+              "children": [
+                {
+                  "block": "styble/icon-picker",
+                  "attrs": {
+                    "featuredIcon": {
+                      "source": "icon",
+                      "iconName": "bolt",
+                      "image": ""
+                    }
+                  }
+                },
+                {
+                  "block": "styble/advanced-text",
+                  "attrs": {
+                    "advancedTextContent": "Real blocks, not markup",
+                    "textHTMLTag": "h3"
+                  }
+                },
+                {
+                  "block": "styble/advanced-text",
+                  "attrs": {
+                    "advancedTextContent": "Everything lands as native Styble blocks you can edit, restyle, and undo in one step.",
+                    "textHTMLTag": "p"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "block": "styble/column",
+          "children": [
+            {
+              "block": "styble/info-box",
+              "attrs": {
+                "layoutType": "layout1",
+                "contentAlign": "center"
+              },
+              "children": [
+                {
+                  "block": "styble/icon-picker",
+                  "attrs": {
+                    "featuredIcon": {
+                      "source": "icon",
+                      "iconName": "palette",
+                      "image": ""
+                    }
+                  }
+                },
+                {
+                  "block": "styble/advanced-text",
+                  "attrs": {
+                    "advancedTextContent": "On your brand by default",
+                    "textHTMLTag": "h3"
+                  }
+                },
+                {
+                  "block": "styble/advanced-text",
+                  "attrs": {
+                    "advancedTextContent": "Your global colour slugs and type scale go into every prompt, so output matches the site it lands in.",
+                    "textHTMLTag": "p"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "block": "styble/column",
+          "children": [
+            {
+              "block": "styble/info-box",
+              "attrs": {
+                "layoutType": "layout1",
+                "contentAlign": "center"
+              },
+              "children": [
+                {
+                  "block": "styble/icon-picker",
+                  "attrs": {
+                    "featuredIcon": {
+                      "source": "icon",
+                      "iconName": "shield-check",
+                      "image": ""
+                    }
+                  }
+                },
+                {
+                  "block": "styble/advanced-text",
+                  "attrs": {
+                    "advancedTextContent": "Validated before it renders",
+                    "textHTMLTag": "h3"
+                  }
+                },
+                {
+                  "block": "styble/advanced-text",
+                  "attrs": {
+                    "advancedTextContent": "Every tree is checked against the block catalog first. Invalid output is rejected with a reason, never guessed at.",
+                    "textHTMLTag": "p"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "name": "Hero — photographic background",
+  "intent": "A hero over a photograph, with an overlay so the copy stays readable.",
+  "tags": [
+    "hero",
+    "photo",
+    "image",
+    "background",
+    "atmosphere",
+    "lifestyle"
+  ],
+  "tree": {
+    "version": "0.1.0",
+    "root": {
+      "block": "styble/container",
+      "attrs": {
+        "sectionPadding": {
+          "device": {
+            "Desktop": {
+              "top": 120,
+              "right": 24,
+              "bottom": 120,
+              "left": 24
+            }
+          },
+          "unit": {
+            "Desktop": "px",
+            "Tablet": "px",
+            "Mobile": "px"
+          }
+        },
+        "sectionBg": {
+          "color": {
+            "style": "image",
+            "solidColor": "var(--styble-dark-neutral)"
+          }
+        },
+        "sectionBgImg": {
+          "alt": "sunlit coffee shop interior with wooden tables"
+        },
+        "sectionBgImgOverlay": {
+          "style": "solid-overlay",
+          "solid": "rgba(0,0,0,0.55)"
+        },
+        "sectionBgImgOverlayOpacity": {
+          "value": 0.55,
+          "unit": "px"
+        }
+      },
+      "children": [
+        {
+          "block": "styble/column",
+          "children": [
+            {
+              "block": "styble/advanced-text",
+              "attrs": {
+                "advancedTextContent": "Roasted the morning it ships",
+                "textHTMLTag": "h1",
+                "textAliment": "center",
+                "textFillBg": {
+                  "color": {
+                    "style": "bgColor",
+                    "solidColor": "var(--styble-white)"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
