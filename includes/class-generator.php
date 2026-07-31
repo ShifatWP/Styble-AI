@@ -30,6 +30,38 @@ class Styble_AI_Generator {
 	const MAX_RETRIES = 1;
 
 	/**
+	 * Provider error codes where a second attempt has a real chance of
+	 * succeeding: the model produced SOMETHING, but it never reached the
+	 * validator — no tool call was made, the output was cut off, or the
+	 * provider's own JSON parser rejected the call before we ever saw a tree.
+	 * `styble_ai_malformed_tool_call`'s own message already said as much: "the
+	 * corrective retry cannot help" — true only because nothing routed a retry
+	 * to this branch. This is that routing.
+	 *
+	 * Deliberately narrow. Two categories are excluded on purpose:
+	 *
+	 * - Config errors (`styble_ai_no_key`, `styble_ai_no_endpoint`,
+	 *   `styble_ai_no_model`, `styble_ai_bad_spec`) — a second call with the
+	 *   same missing setting fails identically. Retrying spends a real request
+	 *   to learn nothing.
+	 * - `styble_ai_api_error` — bundles rate limits and transient HTTP failures.
+	 *   The roadmap already decided against the plugin retrying those itself:
+	 *   production should surface a 429 to the user fast, and only the eval
+	 *   harness is meant to be patient (`docs/ROADMAP.md`, "deliberately not
+	 *   doing yet"). Auto-retrying here would quietly reverse that.
+	 *
+	 * So this list is exactly "the model's fault, not the account's, not the
+	 * network's" — the same class of failure the validator retry already
+	 * exists to correct, just caught one step earlier.
+	 */
+	const RETRYABLE_PROVIDER_CODES = array(
+		'styble_ai_no_tool_use',
+		'styble_ai_truncated',
+		'styble_ai_bad_json',
+		'styble_ai_malformed_tool_call',
+	);
+
+	/**
 	 * @var Styble_AI_Catalog
 	 */
 	private $catalog;
@@ -134,9 +166,10 @@ class Styble_AI_Generator {
 			),
 		);
 
-		$attempt   = 0;
-		$last_tree = null;
-		$last_errs = array();
+		$attempt        = 0;
+		$last_tree      = null;
+		$last_errs      = array();
+		$provider_issue = '';
 
 		while ( $attempt <= $this->max_retries ) {
 			$attempt++;
@@ -144,17 +177,34 @@ class Styble_AI_Generator {
 			$spec['messages'] = array(
 				array(
 					'role'  => 'user',
-					'text'  => $this->message_for( $attempt, $request, $last_tree, $last_errs ),
+					'text'  => $this->message_for( $attempt, $request, $last_tree, $last_errs, $provider_issue ),
 					'image' => $image,
 				),
 			);
 
 			$tree = $this->provider->complete( $spec );
 			if ( is_wp_error( $tree ) ) {
-				return $tree;
+				$retryable    = in_array( $tree->get_error_code(), self::RETRYABLE_PROVIDER_CODES, true );
+				$attempts_left = $attempt <= $this->max_retries;
+
+				if ( ! $retryable || ! $attempts_left ) {
+					return $tree;
+				}
+
+				// A provider-level failure has no tree to quote, so the validator
+				// state from any PRIOR attempt is cleared rather than carried
+				// alongside it — mixing "your last tree was invalid" with "your
+				// call before that never reached the validator" describes two
+				// different failures as one and the model cannot act on both at
+				// once.
+				$last_tree      = null;
+				$last_errs      = array();
+				$provider_issue = self::provider_issue_message( $tree );
+				continue;
 			}
 
-			$result = $this->validator->validate( $tree );
+			$provider_issue = '';
+			$result         = $this->validator->validate( $tree );
 			if ( $result->is_valid() ) {
 				return array(
 					'tree'     => $tree,
@@ -188,15 +238,25 @@ class Styble_AI_Generator {
 	 * the tool_use/tool_result pairing rules entirely and behaves identically on
 	 * both provider shapes.
 	 *
-	 * @param int    $attempt   1-based attempt number.
-	 * @param string $request   Original request.
-	 * @param array  $last_tree Previously rejected tree.
-	 * @param array  $last_errs Validator errors for it.
+	 * @param int    $attempt        1-based attempt number.
+	 * @param string $request        Original request.
+	 * @param array  $last_tree      Previously rejected tree, or null.
+	 * @param array  $last_errs      Validator errors for it.
+	 * @param string $provider_issue A provider-level failure to correct instead
+	 *                                of a validator one — see provider_issue_message().
 	 *
 	 * @return string
 	 */
-	private function message_for( $attempt, $request, $last_tree, $last_errs ) {
-		if ( 1 === $attempt || null === $last_tree ) {
+	private function message_for( $attempt, $request, $last_tree, $last_errs, $provider_issue = '' ) {
+		if ( 1 === $attempt ) {
+			return $request;
+		}
+
+		if ( '' !== $provider_issue ) {
+			return $request . "\n\n" . $provider_issue;
+		}
+
+		if ( null === $last_tree ) {
 			return $request;
 		}
 
@@ -204,6 +264,46 @@ class Styble_AI_Generator {
 			. "Your previous attempt was rejected:\n\n"
 			. "```json\n" . wp_json_encode( $last_tree, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n```\n\n"
 			. Styble_AI_Prompt::correction_message( $last_errs );
+	}
+
+	/**
+	 * A corrective message for a retryable provider-level failure — the sibling
+	 * of Styble_AI_Prompt::correction_message() for the case where nothing
+	 * reached the validator at all.
+	 *
+	 * `styble_ai_malformed_tool_call` carries the model's own unparsed output
+	 * in `failed_generation`; quoting it back is the same pattern the validator
+	 * retry uses for a rejected tree — show the model exactly what it wrote,
+	 * not a paraphrase of what went wrong.
+	 *
+	 * @param WP_Error $error Retryable provider error.
+	 *
+	 * @return string
+	 */
+	private static function provider_issue_message( WP_Error $error ) {
+		$code = $error->get_error_code();
+		$data = $error->get_error_data();
+
+		if ( 'styble_ai_malformed_tool_call' === $code && ! empty( $data['failed_generation'] ) ) {
+			return 'Your previous attempt could not be parsed as valid JSON, so it never reached the validator:'
+				. "\n\n```\n" . $data['failed_generation'] . "\n```\n\n"
+				. 'Call ' . Styble_AI_Prompt::TOOL_NAME . ' again with the same content as valid, well-formed JSON — check every bracket and quote closes.';
+		}
+
+		if ( 'styble_ai_truncated' === $code ) {
+			return 'Your previous attempt ran out of output budget before finishing the layout. '
+				. 'Call ' . Styble_AI_Prompt::TOOL_NAME . ' again with a SMALLER section — fewer blocks or shorter copy — so it finishes within budget.';
+		}
+
+		if ( 'styble_ai_bad_json' === $code ) {
+			return 'Your previous attempt returned malformed JSON that could not be parsed. '
+				. 'Call ' . Styble_AI_Prompt::TOOL_NAME . ' again with valid JSON — check every bracket and quote closes.';
+		}
+
+		// styble_ai_no_tool_use, or any other retryable code without a more
+		// specific message: the model replied without calling the tool at all.
+		return 'Your previous response did not call ' . Styble_AI_Prompt::TOOL_NAME . '. '
+			. 'You must call that tool with the section tree — never reply with prose or markup.';
 	}
 
 	/**
