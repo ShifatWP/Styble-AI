@@ -589,6 +589,19 @@ the next call. `applied[].new_uids`.
 
 `$resource = 'block'` on all eight → read-first-write pairing for free.
 
+**Not in these eight, flagged for whenever it is: a global-style tool.** No tool here
+touches `styble_global_settings` — every one of the eight is scoped to a block. If a
+`page/set-global-style` (or similarly-scoped) tool is ever added, it must patch data
+and CSS together, not data alone. `styble-ai-demo`'s `GlobalStyle` class hit this
+exactly and documented the fix (`docs/STYBLE_AI_DEMO_COMPARISON.md` §3): a colour
+edit has to update **both** the data slot (`colors.presetColors`, whatever key
+Styble Pro's `Global_Settings_Helper` calls it) **and** the derived
+`--styble-{slug}` CSS variable inside the stored `rootcss` string — because the
+frontend enqueue prints `rootcss` verbatim, a data-only write silently does not
+render. Recorded here, not built here: `styble-ai` writes nothing to
+`styble_global_settings` today, and adding a tool that does is a scope decision for
+whoever authorizes it, not something to slip in alongside this note.
+
 ### B.2 The loop
 
 `class-agent-loop.php`. Mirror `runTurn`:

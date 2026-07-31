@@ -313,6 +313,7 @@ run with the wrong key.
 | `docs/CONTRACT.md` | `emit_layout` 0.1.0 — the schema and the 31 codes. |
 | `docs/ZIPAI_SELECTIVE_PORT.md` | **The plan.** Three engines, phases 0–G, decisions S1–S4. |
 | `docs/SPECTRA_AI_IMPLEMENTATION.md` | How ZIP AI and Spectra Blocks actually work, read from source. The reference implementation. |
+| `docs/STYBLE_AI_DEMO_COMPARISON.md` | A teammate's parallel `styble-ai-demo` branch, compared. Verdict: reject-and-never-coerce over coerce-and-default, with three things worth taking regardless. Coordinate before Phase B. |
 | `docs/STYBLE_BLOCKS_MIGRATION_PLAN.md` | The completed fork migration. Historical. |
 | `docs/LANGGRAPH_SPIKE_PLAN.md`, `docs/vision-image-plan.md` | Spikes. |
 
